@@ -1,0 +1,23 @@
+------------------------ TODO --------------------------------------------------
+
+TD1: Inexistência de fricção e de resistência do ar.
+Em um determinado momento em que o quadcóptero apresenta velocidade angular não
+nula no eixo de rotação YAW, e em que o sinal de controle de YAW é nulo,
+espera-se que uma força contrária ao movimento amorteça a rotação do quadcóptero
+resultando em uma velocidade angular nula após algum tempo. No modelo atual,
+entretanto, o quadcóptero quando submetido a este teste mantém-se rodando para
+sempre. 
+
+
+
+
+
+------------------------ NOTES --------------------------------------------------
+
+N1: Sinal de Controle negativo para ângulos.
+O sinal de controlo enviado para os motores nunca deve ser negativo, entretanto,
+os sinais de controle emitidos pelos controladores, antes de serem somados para
+serem enviados para os motores, precisam incluir valores negativos para que os
+movimentos de rotação possa ocorrer nos dois sentidos. Note que essa exigência
+não é problemática se o sinal de controle para rotações sempre tiver módulo
+menor do que o sinal de controle necessário para manter o quadcóptero voando.
