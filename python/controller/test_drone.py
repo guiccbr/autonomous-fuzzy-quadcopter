@@ -3,7 +3,7 @@
 import sys
 # Add path to controllers && quadcopters
 # Please, run script in {tfc-drone}/simulator dir
-sys.path.append("../../model/")
+sys.path.append("../model/")
 
 # ------------------------ Imports ----------------------------------#
 import matplotlib.pyplot as plt
@@ -17,7 +17,9 @@ import model
 # ------------------------ Constants  -------------------------------#
 # - Control Signal:
 UMAX = 1000.0     # Range Max 
-UMIN = 0.0    # Range Min
+UMIN = 800.0    # Range Min
+UMIN_PITCHROLL = -200.0
+UMAX_PITCHROLL = 200.0
 UMIN_ANGLE = -0.05
 UMAX_ANGLE = 0.05
 U1 = 0.0 # Start control signal
@@ -26,18 +28,18 @@ U1 = 0.0 # Start control signal
 X_SIZE = 2  # Dimension of the input (measured by sensors of the plant)
 
 # - Plant output reference (Measured by sensors on the plant)
-REFMAX = 10.0     # Range Max
-REFMIN = -10.0    # Range Min
+REFMAX = 100     # Range Max
+REFMIN = -100    # Range Min
 
-REFMAX_ANGLE = math.pi/2
-REFMIN_ANGLE = -math.pi/2
+REFMAX_ANGLE = math.pi/4
+REFMIN_ANGLE = -math.pi/4
 
 REFMAX_YAW_ANGLE = math.pi
 REFMIN_YAW_ANGLE = -math.pi
 
 # - Time Step
-STEPTIME = 0.01
-MAXSTEPS = 5000 
+STEPTIME = 0.001
+MAXSTEPS = 50000 
 
 # ------------------------ Main Program  ---------------------------#
 def test_sparc_model():
@@ -71,11 +73,12 @@ def test_sparc_model():
    
     # Start prev_ values:
     prev_y = [0.0, 0.0, 0.0, 0.0]
-    prev_ref = [5.0,math.pi/8,0.0, 0.0]
+    prev_ref = [5.0,0.0,math.pi/8.0, 0.0]
     
     # Starting u value:
     curr_u = [U1, U1, U1, U1] 
 
+    alt_points = [0]
     # Run for k steps
     for k in range(1, MAXSTEPS):
         
@@ -114,12 +117,12 @@ def test_sparc_model():
         prev_y = curr_y[:]
         prev_ref = curr_ref
 
-
         # On the first iteration, initializes the controller with the first values
         if k == 1:
             # Instantiates Controller and does not update model:
             controller_alt = sparc.SparcController((UMIN, UMAX), (REFMIN, REFMAX), X_SIZE, curr_x[0], curr_u[0])
-            controller_pitch = sparc.SparcController((UMIN_ANGLE, UMAX_ANGLE), (REFMIN_ANGLE, REFMAX_ANGLE), X_SIZE, curr_x[2], curr_u[2])
+            controller_pitch = sparc.SparcController((UMIN_PITCHROLL,
+                UMAX_PITCHROLL), (REFMIN_ANGLE, REFMAX_ANGLE), X_SIZE, curr_x[2], curr_u[2])
             controller_roll = sparc.SparcController((UMIN_ANGLE, UMAX_ANGLE), (REFMIN_ANGLE, REFMAX_ANGLE), X_SIZE, curr_x[3], curr_u[3])
             controller_yaw = sparc.SparcController((UMIN_ANGLE, UMAX_ANGLE), (REFMIN_YAW_ANGLE, REFMAX_YAW_ANGLE), X_SIZE, curr_x[1], curr_u[1])
 
@@ -131,7 +134,9 @@ def test_sparc_model():
             roll_u = controller_roll.update(curr_x[3], curr_y[3], curr_ref[3])
 
 #            curr_u = [alt_u, yaw_u, pitch_u, roll_u]
-            curr_u = [904.5, yaw_u, 0.0, 0.0]
+#            curr_u = [904.5, yaw_u, 0.0, 0.0]
+            curr_u = [alt_u, 0.0, pitch_u, 0.0]
+            alt_points.append(alt_u/50)
 
             # Speed on Engines:
             m1 = curr_u[0] + curr_u[1] + curr_u[2] - 0*curr_u[3]
@@ -149,8 +154,8 @@ def test_sparc_model():
     # Plotting
     kpoints = range(1, MAXSTEPS)
 
-    axes_alt.plot(kpoints, refpoints_alt, 'r')
-    axes_alt.plot(kpoints, ypoints_alt, 'b')
+    axes_alt.plot(kpoints, ypoints_alt, 'r')
+    axes_alt.plot(kpoints, alt_points, 'b')
     
     axes_roll.plot(kpoints, refpoints_roll, 'r')
     axes_roll.plot(kpoints, ypoints_roll, 'b')

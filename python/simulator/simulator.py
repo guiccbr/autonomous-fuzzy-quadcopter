@@ -2,7 +2,7 @@ import sys
 
 # Add path to controllers && quadcopters
 # Please, run script in {tfc-drone}/simulator dir
-sys.path.append("../controller/src/")
+sys.path.append("../controller/")
 sys.path.append("../model/")
 
 from datetime import datetime
