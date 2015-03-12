@@ -14,6 +14,17 @@ sempre.
 
 ------------------------ NOTES --------------------------------------------------
 
+N0: Posição dos Motores e sistema de referencia do quadcoptero:
+
+	  ^ (X)
+	(M1)
+	  |
+	  |  
+  (M4)----|----(M2)> (y)
+          |
+          |
+        (M3)
+			
 N1: Sinal de Controle negativo para ângulos.
 O sinal de controlo enviado para os motores nunca deve ser negativo, entretanto,
 os sinais de controle emitidos pelos controladores, antes de serem somados para

@@ -1,4 +1,4 @@
-# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+#vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 
 import sys
 # Add path to controllers && quadcopters
@@ -16,12 +16,12 @@ import model
 
 # ------------------------ Constants  -------------------------------#
 # - Control Signal:
-UMAX = 1000.0     # Range Max 
-UMIN = 800.0    # Range Min
+UMAX = 1300.0     # Range Max 
+UMIN = 600.0    # Range Min
 UMIN_PITCHROLL = -200.0
 UMAX_PITCHROLL = 200.0
-UMIN_ANGLE = -0.05
-UMAX_ANGLE = 0.05
+UMIN_ANGLE = -50.0
+UMAX_ANGLE = 50.0
 U1 = 0.0 # Start control signal
 
 # - Input Signal (Measured by sensors on the plant)
@@ -38,12 +38,19 @@ REFMAX_YAW_ANGLE = math.pi
 REFMIN_YAW_ANGLE = -math.pi
 
 # - Time Step
-STEPTIME = 0.001
-MAXSTEPS = 50000 
+STEPTIME = 0.05
+MAXSTEPS = 3000 
 
 # ------------------------ Main Program  ---------------------------#
-def test_sparc_model():
-    
+def test_sparc_model(debug):
+    print debug    
+
+
+    # Instantiates figure for plotting motor angular velocities:
+    fig_motors = plt.figure('Motors')
+    axes_motors = fig_motors.add_axes([0.1, 0.1, 0.8, 0.8])
+    motor_points = [[0], [0], [0], [0]]
+
     # Instantiates figure for plotting alt results:
     fig_alt = plt.figure('Quadcopter alt');
     axes_alt = fig_alt.add_axes([0.1, 0.1, 0.8, 0.8])
@@ -55,7 +62,7 @@ def test_sparc_model():
     axes_pitch = fig_pitch.add_axes([0.1, 0.1, 0.8, 0.8])
     ypoints_pitch = []
     refpoints_pitch = []
-    
+   
     # Instantiates figure for plotting roll results:
     fig_roll = plt.figure('Quadcopter roll');
     axes_roll = fig_roll.add_axes([0.1, 0.1, 0.8, 0.8])
@@ -73,12 +80,11 @@ def test_sparc_model():
    
     # Start prev_ values:
     prev_y = [0.0, 0.0, 0.0, 0.0]
-    prev_ref = [5.0,0.0,math.pi/8.0, 0.0]
+    prev_ref = [5.0,0.0,math.pi/8,0.0]
     
     # Starting u value:
     curr_u = [U1, U1, U1, U1] 
 
-    alt_points = [0]
     # Run for k steps
     for k in range(1, MAXSTEPS):
         
@@ -91,9 +97,12 @@ def test_sparc_model():
         curr_ref = prev_ref[:] 
 
         curr_x  = [generate_input(curr_y[0], prev_y[0], curr_ref[0], prev_ref[0], STEPTIME),
-                generate_input(curr_y[1], prev_y[1], curr_ref[1], prev_ref[1], STEPTIME),
+                generate_input(curr_y[1], prev_y[1], curr_ref[1], prev_ref[1],
+                    STEPTIME),
                 generate_input(curr_y[2], prev_y[2], curr_ref[2], prev_ref[2], STEPTIME),
                 generate_input(curr_y[3], prev_y[3], curr_ref[3], prev_ref[3], STEPTIME)]
+
+
 
         # Stores on list for plotting:
         ypoints_alt.append(curr_y[0])
@@ -115,7 +124,10 @@ def test_sparc_model():
         #print "Step:", k, " | y:", curr_y, " | err:", np.subtract(curr_y,curr_ref).tolist(), " | u:", curr_u
 
         prev_y = curr_y[:]
-        prev_ref = curr_ref
+        prev_ref = curr_ref[:]
+
+        if k%(MAXSTEPS/10) == 0:
+            print 'k= ', k
 
         # On the first iteration, initializes the controller with the first values
         if k == 1:
@@ -123,7 +135,8 @@ def test_sparc_model():
             controller_alt = sparc.SparcController((UMIN, UMAX), (REFMIN, REFMAX), X_SIZE, curr_x[0], curr_u[0])
             controller_pitch = sparc.SparcController((UMIN_PITCHROLL,
                 UMAX_PITCHROLL), (REFMIN_ANGLE, REFMAX_ANGLE), X_SIZE, curr_x[2], curr_u[2])
-            controller_roll = sparc.SparcController((UMIN_ANGLE, UMAX_ANGLE), (REFMIN_ANGLE, REFMAX_ANGLE), X_SIZE, curr_x[3], curr_u[3])
+            controller_roll = sparc.SparcController((UMIN_PITCHROLL,
+                UMAX_PITCHROLL), (REFMIN_ANGLE, REFMAX_ANGLE), X_SIZE, curr_x[3], curr_u[3])
             controller_yaw = sparc.SparcController((UMIN_ANGLE, UMAX_ANGLE), (REFMIN_YAW_ANGLE, REFMAX_YAW_ANGLE), X_SIZE, curr_x[1], curr_u[1])
 
         else:
@@ -131,12 +144,10 @@ def test_sparc_model():
             alt_u = controller_alt.update(curr_x[0], curr_y[0], curr_ref[0])
             yaw_u = controller_yaw.update(curr_x[1], curr_y[1], curr_ref[1])
             pitch_u = controller_pitch.update(curr_x[2], curr_y[2], curr_ref[2])
-            roll_u = controller_roll.update(curr_x[3], curr_y[3], curr_ref[3])
-
+            roll_u = controller_roll.update(curr_x[3], curr_y[3], curr_ref[3]) 
 #            curr_u = [alt_u, yaw_u, pitch_u, roll_u]
 #            curr_u = [904.5, yaw_u, 0.0, 0.0]
             curr_u = [alt_u, 0.0, pitch_u, 0.0]
-            alt_points.append(alt_u/50)
 
             # Speed on Engines:
             m1 = curr_u[0] + curr_u[1] + curr_u[2] - 0*curr_u[3]
@@ -144,9 +155,17 @@ def test_sparc_model():
             m3 = curr_u[0] + curr_u[1] - curr_u[2] + 0*curr_u[3]
             m4 = curr_u[0] - curr_u[1] - 0*curr_u[2] - curr_u[3]
 
-            print 'u: ', curr_u
-            print '(alt, yaw): ', (curr_y[0], curr_y[1])
-            print 'Engines: ', (m1, m2,m3,m4)
+            # Stores on list for plotting:
+            motor_points[0].append(m1)
+            motor_points[1].append(m2)
+            motor_points[2].append(m3)
+            motor_points[3].append(m4)
+
+            if debug == 'T':
+                print 'u: ', curr_u
+                print '(alt, yaw, pitch, roll): ', (curr_y[0], curr_y[1],
+                        curr_y[2], curr_y[3])
+                print 'Engines: ', (m1, m2,m3,m4)
 
             # Updates the model
             quadcopter.update(STEPTIME, (m1, m2, m3, m4)) 
@@ -154,8 +173,14 @@ def test_sparc_model():
     # Plotting
     kpoints = range(1, MAXSTEPS)
 
-    axes_alt.plot(kpoints, ypoints_alt, 'r')
-    axes_alt.plot(kpoints, alt_points, 'b')
+    axes_motors.plot(kpoints, motor_points[0], 'r')
+    axes_motors.plot(kpoints, motor_points[1], 'y')
+    axes_motors.plot(kpoints, motor_points[2], 'b')
+    axes_motors.plot(kpoints, motor_points[3], 'g')
+
+
+    axes_alt.plot(kpoints, refpoints_alt, 'r')
+    axes_alt.plot(kpoints, ypoints_alt, 'b')
     
     axes_roll.plot(kpoints, refpoints_roll, 'r')
     axes_roll.plot(kpoints, ypoints_roll, 'b')
@@ -180,7 +205,7 @@ def reference(k):
 
     return refk 
 
-def generate_input(y, yprev, ref, refprev, t):
+def generate_input(y, yprev, ref, refprev, t, gain=1):
     curr_e = y-ref
     prev_e = yprev - refprev
 
@@ -188,4 +213,4 @@ def generate_input(y, yprev, ref, refprev, t):
     return x
 
 # ------------------------ Run Main Program ------------------------#
-test_sparc_model()
+test_sparc_model(sys.argv[1])
