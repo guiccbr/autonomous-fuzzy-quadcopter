@@ -1,4 +1,5 @@
 # Universidade Estadual de Campinas - UNICAMP
+
 # Trabalho Final de Curso
 # Diego Pereira Domingos RA 090923
 # Guilherme Campos Camargo RA
@@ -11,8 +12,8 @@ class quadcopter():
 
 	def __init__(self, model=None):
 		self.x = array([[.0],[.0],[.0]])
-		self.xdot = array([[.0],[.0],[.0]])
-		self.theta = array([[.0],[.0],[.0]])
+		self.xdot = array([[.0],[.0],[.0]]) # (x, y, z)
+		self.theta = array([[.0],[.0],[.0]]) #(roll, pitch, yaw)
 		self.thetadot = array([[.0],[.0],[.0]])
 		self.omega = array([[.0],[.0],[.0]])
 		self.omegadot = array([[.0],[.0],[.0]])
@@ -21,7 +22,9 @@ class quadcopter():
 	
 	def update(self,dt,inputs):
 		self.omega = self.thetadot2omega(self.thetadot, self.theta);
-		a = self.acceleration(inputs, self.theta, self.xdot, self.model.m, self.model.g, self.model.k, self.model.kd);
+                
+            
+                a = self.acceleration(inputs, self.theta, self.xdot, self.model.m, self.model.g, self.model.k, self.model.kd);
 		self.omegadot = self.angular_acceleration(inputs, self.omega, self.model.I, self.model.L, self.model.b, self.model.k);
 		self.omega = self.omega + dt * self.omegadot;
 		
@@ -46,9 +49,9 @@ class quadcopter():
 	# Compute torques, given current inputs, length, drag coefficient, and thrust coefficient.
 	def torques(self,inputs, L, b, k):
                 tau = array([.0,.0,.0])
-                tau[0] = L*k*(inputs[0]**2-inputs[2]**2)
-                tau[1] = L*k*(inputs[1]**2-inputs[3]**2)
-                tau[2] = b*(inputs[0]**2-inputs[1]**2+inputs[2]**2-inputs[3]**2)
+                tau[0] = L*k*(inputs[1]**2-inputs[3]**2)
+                tau[1] = L*k*(inputs[0]**2-inputs[2]**2)
+                tau[2] = b*(inputs[0]-inputs[1]+inputs[2]-inputs[3])**2
 	#	tau = array([L*k*(inputs[0]-inputs[2]), L*k*(inputs[1]-inputs[3]), b*(inputs[0]-inputs[1]+inputs[2]-inputs[3])])
                
                 return tau
@@ -74,10 +77,13 @@ class quadcopter():
         # and so, the cross product is not possible.
 	def angular_acceleration(self,inputs, omega, I, L, b, k):
 		tau = self.torques(inputs, L, b, k);
-		omegad = np.dot(transpose(np.linalg.inv(I)), (tau - np.cross(transpose(omega)[0], np.dot(transpose(I), transpose(omega)[0]))));
+                omega = transpose(omega)[0]
+                omegad = np.dot(np.linalg.inv(I), np.subtract(tau,
+                    np.cross(omega, np.dot(I, omega))))
+#		omegad = np.dot(transpose(np.linalg.inv(I)), (tau - np.cross(transpose(omega)[0], np.dot(transpose(I), transpose(omega)[0]))));
 	
                 # Filtering
-                omegad = self.filterArray(omegad, 1e-15) 
+                omegad = self.filterArray(omegad, 1e-14) 
 
                 return self.lineToColumn(omegad)
 		
