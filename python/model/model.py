@@ -9,13 +9,13 @@ class model():
 
 	def __init__(self,params=None):
 		if params == None:
-			self.m = 1
+			self.m = 0.5
 			self.g = 9.81
-			self.k = 0.000003
+			self.k = 3e-6
 			self.kd = 0.25
 			self.I = np.diag([0.005, 0.005, 0.010])
 			self.L = 0.25
-			self.b = 0.00007
+			self.b = 1e-7
 		else:
 			self.m = params[0]
 			self.g = params[1]
