@@ -16,10 +16,10 @@ import model
 
 # ------------------------ Constants  -------------------------------#
 # - Control Signal:
-UMAX = 1300.0     # Range Max 
+UMAX = 780.0     # Range Max 
 UMIN = 600.0    # Range Min
-UMIN_PITCHROLL = -200.0
-UMAX_PITCHROLL = 200.0
+UMIN_PITCHROLL = -100.0
+UMAX_PITCHROLL = 100.0
 UMIN_ANGLE = -50.0
 UMAX_ANGLE = 50.0
 U1 = 0.0 # Start control signal
@@ -28,8 +28,8 @@ U1 = 0.0 # Start control signal
 X_SIZE = 2  # Dimension of the input (measured by sensors of the plant)
 
 # - Plant output reference (Measured by sensors on the plant)
-REFMAX = 100     # Range Max
-REFMIN = -100    # Range Min
+REFMAX = 50     # Range Max
+REFMIN = -50    # Range Min
 
 REFMAX_ANGLE = math.pi/4
 REFMIN_ANGLE = -math.pi/4
@@ -38,14 +38,11 @@ REFMAX_YAW_ANGLE = math.pi
 REFMIN_YAW_ANGLE = -math.pi
 
 # - Time Step
-STEPTIME = 0.05
-MAXSTEPS = 3000 
+STEPTIME = 0.1
+MAXSTEPS = 1000 
 
 # ------------------------ Main Program  ---------------------------#
 def test_sparc_model(debug):
-    print debug    
-
-
     # Instantiates figure for plotting motor angular velocities:
     fig_motors = plt.figure('Motors')
     axes_motors = fig_motors.add_axes([0.1, 0.1, 0.8, 0.8])
@@ -80,7 +77,7 @@ def test_sparc_model(debug):
    
     # Start prev_ values:
     prev_y = [0.0, 0.0, 0.0, 0.0]
-    prev_ref = [5.0,0.0,math.pi/8,0.0]
+    prev_ref = [2.0,0.0,0.0,0.0]
     
     # Starting u value:
     curr_u = [U1, U1, U1, U1] 
@@ -92,8 +89,11 @@ def test_sparc_model(debug):
         quad_position = quadcopter.x
         quad_angles = quadcopter.theta # angles: [roll, pitch, yaw]
 
+        print quad_position;
+        print quad_angles;
+
         # y : [alt, yaw, pitch, roll]
-        curr_y = [quad_position[2][0], quad_angles[2][0], quad_angles[1][0], quad_angles[0][0]]
+        curr_y = [quad_position[2], quad_angles[2], quad_angles[1], quad_angles[0]]
         curr_ref = prev_ref[:] 
 
         curr_x  = [generate_input(curr_y[0], prev_y[0], curr_ref[0], prev_ref[0], STEPTIME),
@@ -132,7 +132,8 @@ def test_sparc_model(debug):
         # On the first iteration, initializes the controller with the first values
         if k == 1:
             # Instantiates Controller and does not update model:
-            controller_alt = sparc.SparcController((UMIN, UMAX), (REFMIN, REFMAX), X_SIZE, curr_x[0], curr_u[0])
+            controller_alt = sparc.SparcController((UMIN, UMAX), (REFMIN,
+                REFMAX), X_SIZE, curr_x[0], curr_u[0])
             controller_pitch = sparc.SparcController((UMIN_PITCHROLL,
                 UMAX_PITCHROLL), (REFMIN_ANGLE, REFMAX_ANGLE), X_SIZE, curr_x[2], curr_u[2])
             controller_roll = sparc.SparcController((UMIN_PITCHROLL,
@@ -147,7 +148,7 @@ def test_sparc_model(debug):
             roll_u = controller_roll.update(curr_x[3], curr_y[3], curr_ref[3]) 
 #            curr_u = [alt_u, yaw_u, pitch_u, roll_u]
 #            curr_u = [904.5, yaw_u, 0.0, 0.0]
-            curr_u = [alt_u, 0.0, pitch_u, 0.0]
+            curr_u = [alt_u, 0.0, 0.0, 0.0]
 
             # Speed on Engines:
             m1 = curr_u[0] + curr_u[1] + curr_u[2] - 0*curr_u[3]

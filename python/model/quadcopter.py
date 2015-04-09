@@ -59,7 +59,7 @@ class quadcopter():
         tau = self.torques(inputs, L, b, k)
         omegad = np.dot(np.linalg.inv(I), np.subtract(tau, np.cross(omega, np.dot(I, omega))))      
         # Filtering
-        #omegad = self.filterArray(omegad, 1e-14)
+        omegad = self.filterArray(omegad, 1e-14)
         return omegad
         
     # Convert derivatives of roll, pitch, yaw to omega.
@@ -94,3 +94,11 @@ class quadcopter():
         R[:, 2] = [sin(phi_) * sin(psi_) + cos(phi_) * cos(psi_) * sin(theta_),cos(psi_) * sin(phi_) * sin(theta_) - cos(phi_) * sin(psi_),cos(theta_) * cos(psi_)]
         
         return R
+
+    def filterArray(self, array, threshold):
+        '''
+        Elements on the numpy array (1d or 2d), that have an absolute value less
+        than threshold are truncated to 0.0
+        '''
+        array[np.nonzero(abs(array) < abs(threshold))] = 0.0
+        return array
