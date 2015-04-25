@@ -1,17 +1,16 @@
-#vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
+# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
 
 # ------------------------ Imports ----------------------------------#
-from __future__ import division # Force real division
-import numpy as np  # arrays import time         # time step
-import math         # sqrt
-#import matplotlib.pyplot as plt # Plotting
+from __future__ import division  # Force real division
+import numpy as np  # Numpy Arrays
+import math  # Square root
+
 
 # ------------------------ Classes  ---------------------------------#
 class SparcController:
-
-    def __init__(self, control_range, ref_range, input_size, init_input,
-            init_output, init_ref, init_y, init_data_clouds=[], dc_radius_const=0.5, k_init=1):
-        '''
+    def __init__(self, control_range, ref_range, input_size, init_input, init_output, init_ref, init_y,
+                 init_data_clouds=None, dc_radius_const=0.5, k_init=1):
+        """
         Initiates a sparc controller using the first sample.
 
         Keyword arguments:
@@ -24,10 +23,12 @@ class SparcController:
         input_size -- Size of the input x (int)
         init_input -- First input value (numpy array of size input_size)
         init_output -- First output signal (float)
-        init_data_clouds -- Optional initialization datacloud (list of DataCloud objects)
+        init_data_clouds -- Optional initialization data cloud (list of DataCloud objects)
         dc_radius_const -- DataCloud radius constant (see DataCloud class for more details)
         k_init -- The number where the iteration count starts
-        '''
+        """
+        if not init_data_clouds:
+            init_data_clouds = []
 
         # Set constant values
         self.umin, self.umax = control_range
@@ -35,11 +36,11 @@ class SparcController:
         self.xsize = input_size
         self.radius_update_const = dc_radius_const
         self.clouds = list(init_data_clouds)
-        self.k = k_init 
+        self.k = k_init
 
         # Global density recursive values
-        self.g_csi = np.array([0.0]*(self.xsize+1));
-        self.g_b = 0.0;
+        self.g_csi = np.array([0.0] * (self.xsize + 1))
+        self.g_b = 0.0
 
         # Initial input and output:
         self.curr_x = init_input
@@ -52,22 +53,22 @@ class SparcController:
         self.prev_u = 0.0
 
         # - Consequents update constant
-        self.c = float(self.umax - self.umin)/(self.refmax - self.refmin)
+        self.c = float(self.umax - self.umin) / (self.refmax - self.refmin)
 
         if not self.clouds:
             # Initiates SPARC with the first cloud, with an initial
             # consequent given by U1, and updates the plant if first iteration.
-            sigma1 = np.array([1.0]*self.xsize)
+            sigma1 = np.array([1.0] * self.xsize)
             self.clouds.append(DataCloud(self.curr_z, sigma1, self.radius_update_const))
 
             # Initializes array with membership degrees.
             # md[i] corresponds to the degree of membership of the sample xk to the Data Cloud i
-            self.curr_md = np.array([1.0]);  
+            self.curr_md = np.array([1.0])
 
-            # Update global density recursive values
+            # Update global density recursive values for the first cloud
             self.g_csi = np.add(self.g_csi, self.curr_z)
             self.g_b = self.g_b + np.dot(self.curr_z, self.curr_z)
-            
+
             # Store last sample
             self.prev_u = self.curr_u
             self.prev_y = init_y
@@ -77,7 +78,6 @@ class SparcController:
             # Update k before next iteration
             self.k += 1
 
-
         else:
             # TODO: Functionality of starting with a non-empy list of clouds has been added,
             # but has not been implemented and tested at all. Need more time to test it.
@@ -85,7 +85,7 @@ class SparcController:
             pass
 
     def update(self, curr_x, curr_y, curr_ref):
-        '''
+        """
         Calculate the output given an input and a reference.
 
         Keyword arguments:
@@ -95,36 +95,44 @@ class SparcController:
 
         Returns:
         u -- output respective to curr_x (float)
-        '''
+        """
 
         # Updates the consequents of all clouds 
         for i in range(len(self.clouds)):
-            self.clouds[i].update_consequent(self.prev_md[i], curr_x, self.prev_ref, curr_y,
-                    self.prev_u, self.c, self.umin, self.umax)
+            self.clouds[i].update_consequent(self.prev_md[i], self.prev_ref, curr_y,
+                                             self.prev_u, self.c, self.umin, self.umax)
 
         # Calculate the new values of membership degrees, for the current sample.
         # Also finds out the data cloud that better describes the current sample. 
         ld_sum = 0.0
-        curr_x_cloud = 0                # Index of the Best cloud.
-        curr_x_cloud_ld = 0.0           # Best cloud local density.
+        curr_x_cloud = 0  # Index of the Best cloud.
+        curr_x_cloud_ld = 0.0  # Best cloud local density.
         for i in range(len(self.clouds)):
-            self.curr_md[i] = self.clouds[i].get_local_density(curr_x) 
-            ld_sum = ld_sum + self.curr_md[i] 
+            self.curr_md[i] = self.clouds[i].get_local_density(curr_x)
+            if math.isnan(self.curr_md[i]):
+                self.curr_md[i] = 0
+            ld_sum = ld_sum + self.curr_md[i]
             if self.curr_md[i] > curr_x_cloud_ld:
                 curr_x_cloud = i
-                curr_x_cloud_ld = self.curr_md[i] 
-        self.curr_md = self.curr_md/float(ld_sum) 
-        
+                curr_x_cloud_ld = self.curr_md[i]
+
+        if math.isnan(ld_sum):
+            self.curr_md = 0
+        else:
+            self.curr_md /= float(ld_sum)
+
         # Generate control signal
-        self.curr_u = 0.0 
+        self.curr_u = 0.0
         for i in range(len(self.clouds)):
-            self.curr_u = self.curr_u + self.curr_md[i]*self.clouds[i].get_consequent()
+            self.curr_u = self.curr_u + self.curr_md[i] * self.clouds[i].get_consequent()
 
         # Prevent over-excursion
         if self.curr_u > self.umax:
             self.curr_u = self.umax
         if self.curr_u < self.umin:
             self.curr_u = self.umin
+
+        # print 'u_not_truncated: ', self.curr_u
 
         # Concatenates x and u to form z:
         curr_z = np.append(curr_x, self.curr_u)
@@ -134,21 +142,20 @@ class SparcController:
 
         # Tests to see if a new cloud is needed by doing the following (1) and (2):
         curr_sample_global_density_is_better = True
-        curr_sample_local_density_is_better = True
         curr_sample_is_distant_enough = True
 
         # (1) Compares Z Global Density with all data clouds focal points global densities
         for c in self.clouds:
             gdf = self.get_global_density(self.g_csi, self.g_b, c.zf, self.k)
             if curr_gd <= gdf:
-                curr_z_global_density_is_better = False 
+                curr_sample_global_density_is_better = False
                 break
 
         # (2) Compares distance of zk to focal points with data cloud radiuses
         for c in self.clouds:
             for r in c.r:
-                if np.linalg.norm(curr_z - c.zf) <= r/2.0:
-                    curr_sample_is_distant_enough = False 
+                if np.linalg.norm(curr_z - c.zf) <= r / 2.0:
+                    curr_sample_is_distant_enough = False
                     break
 
         # If a new cloud is needed, creates a new cloud
@@ -156,18 +163,18 @@ class SparcController:
         # if the focal point has to be updated
         new_cloud_needed = curr_sample_global_density_is_better and curr_sample_is_distant_enough
 
-        if new_cloud_needed == True:
+        if new_cloud_needed:
 
             # Computes starting sigma (local scatter):
-            sigma = np.array([0.0]*self.xsize)
+            sigma = np.array([0.0] * self.xsize)
             for i in range(0, self.xsize):
                 for c in self.clouds:
-                    sigma[i] = sigma[i] + math.sqrt(c.variance[i])
-                sigma[i] = float(sigma[i])/len(self.clouds)
+                    sigma[i] += math.sqrt(c.variance[i])
+                sigma[i] = float(sigma[i]) / len(self.clouds)
 
             # Creates new cloud with focal point zk and starting sigma
             self.clouds.append(DataCloud(curr_z, sigma, self.radius_update_const))
-            self.curr_md = np.append(self.curr_md, 0.0);
+            self.curr_md = np.append(self.curr_md, 0.0)
         else:
             # Computes cxk focal point global density (to check if focal point has to change)
             gdf = self.get_global_density(self.g_csi, self.g_b, self.clouds[curr_x_cloud].zf, self.k)
@@ -182,7 +189,7 @@ class SparcController:
             # ldf is the local density of the focal point of curr_x's cloud.
             # curr_gd is the global density of curr_z
             # curr_x_cloud_gd is the global density of the focal point of curr_z's cloud.
-            if  curr_x_cloud_ld > ldf and curr_gd > gdf:
+            if curr_x_cloud_ld > ldf and curr_gd > gdf:
                 self.clouds[curr_x_cloud].update_focal_point(curr_z)
 
             # Insert point to data cloud, updating radius, size, variance, etc.
@@ -202,10 +209,17 @@ class SparcController:
         # Update k before next iteration
         self.k += 1
 
+        if math.isnan(self.curr_u):
+            self.curr_u = 0
+
         # Return output u related to input curr_x
         return self.curr_u
 
-    def get_global_density(self, g_csi, g_b, curr_z, k):
+
+
+
+    @staticmethod
+    def get_global_density(g_csi, g_b, curr_z, k):
         """
         Calculates recursively the Global Density of point curr_z.
 
@@ -218,13 +232,13 @@ class SparcController:
 
         # Computes global density of z and global density of f
         # TODO: There's something wrong here. It might result in division by zero in
-        # some occasions if implemented like the paper. 
+        # some occasions if implemented like the paper.
         # Workaround is to result in zero in these cases.
         if k == 1:
             gd = 0.0
             return gd
         else:
-            gd = float((k-1))/((k-1)*(np.dot(curr_z, curr_z) + 1.0) - 2*(np.dot(curr_z, g_csi)) + g_b)
+            gd = float((k - 1)) / ((k - 1) * (np.dot(curr_z, curr_z) + 1.0) - 2 * (np.dot(curr_z, g_csi)) + g_b)
             return gd
 
 
@@ -239,7 +253,7 @@ class DataCloud:
     sigma_sq -- parameter for recursively calculation of radii. (variance)
     m -- number of points added so far
     z -- Last point added.
-    """ 
+    """
 
     def __init__(self, z, sigma, radius_update_const=0.5):
         """
@@ -258,16 +272,16 @@ class DataCloud:
         # Gets plant input (x) and control signal (u) 
         # from z where z = [x', u']', setting them
         # as focal point (xf) and consequent (q) respectively.
-        self.zf = z 
+        self.zf = z
 
         self.xsize = len(z) - 1
 
         # Local density calculation values
-        csi0 = np.array([0.0]*self.xsize)
-        self.csi = np.add(csi0, self.zf[:self.xsize])         
+        csi0 = np.array([0.0] * self.xsize)
+        self.csi = np.add(csi0, self.zf[:self.xsize])
 
-        betha0 = 0.0 
-        self.betha = betha0 + np.dot(self.zf[:self.xsize], self.zf[:self.xsize]) 
+        betha0 = 0.0
+        self.betha = betha0 + np.dot(self.zf[:self.xsize], self.zf[:self.xsize])
 
         # Data Cloud Size
         self.m = 1
@@ -275,7 +289,7 @@ class DataCloud:
         # Data Cloud Radius
         # Each data cloud has X_SIZE radiuses, one for each dimension of x.
         # By definition the initial radius r1 is 1 for each dimension.
-        self.r = np.array([1.0]*self.xsize)
+        self.r = np.array([1.0] * self.xsize)
 
         # Local Scatter square (sigma_square), has to be stored for recursive calculation of
         # the radius. For each dimension of x, there's a sigma associated to it.
@@ -286,7 +300,6 @@ class DataCloud:
         # stored and calculated recursively as well. The centroid starts as
         # the first data sample (z).
         self.centroid = self.zf
-
 
     def update_focal_point(self, z):
         """
@@ -303,10 +316,10 @@ class DataCloud:
         Update radius of the Data Cloud recursively.
         It needs to be called after a new point is added to the Cloud.
 
-        """ 
+        """
         p = self.radius_update_const
         for i in range(0, len(self.r)):
-            self.r[i] = p*self.r[i] + (1-p)*math.sqrt(self.variance[i])
+            self.r[i] = p * self.r[i] + (1 - p) * math.sqrt(self.variance[i])
 
     def __update_variance_and_centroid__(self, curr_z):
         """
@@ -318,14 +331,17 @@ class DataCloud:
         """
         # Extract centroid X
         x = curr_z[:self.xsize]
-        
+        new_centroid = self.centroid[:]
+
         # Calculate New Centroid
-        new_centroid = (self.centroid*(self.m-1) + curr_z)/self.m
-       
+        for i in range(0, len(self.centroid)):
+            new_centroid[i] = (self.centroid[i] * (self.m - 1) + curr_z[i]) / self.m
+
         # Calulate and Update New Variance
         for i in range(0, len(self.variance)):
             prev_variance = self.variance[i]
-            self.variance[i] = (1.0/self.m)*((self.m-1)*prev_variance + (x[i] - self.centroid[i])*(x[i] - new_centroid[i]))
+            self.variance[i] = (1.0 / self.m) * (
+                (self.m - 1) * prev_variance + (x[i] - self.centroid[i]) * (x[i] - new_centroid[i]))
 
         # Update centroid
         self.centroid = new_centroid
@@ -340,7 +356,7 @@ class DataCloud:
         """
 
         # Update number of points
-        self.m = self.m + 1;
+        self.m += 1
 
         # Extract x
         x = curr_z[:self.xsize]
@@ -352,7 +368,7 @@ class DataCloud:
         self.__update_radius__()
 
         # Update local density values 
-        self.csi = np.add(self.csi, x) 
+        self.csi = np.add(self.csi, x)
         self.betha = self.betha + np.dot(x, x)
 
     def get_local_density(self, x):
@@ -362,16 +378,15 @@ class DataCloud:
         Keyword arguments:
         x -- an input of dimension XSIZE
         """
-        ld = float(self.m)/(self.m*(np.dot(x, x) + 1) - 2*(np.dot(x, self.csi)) + self.betha)
+        ld = float(self.m) / (self.m * (np.dot(x, x) + 1) - 2 * (np.dot(x, self.csi)) + self.betha)
 
         return ld
 
-    def update_consequent(self, prev_md, curr_x, prev_ref, curr_y, prev_u, C, umin, umax):
+    def update_consequent(self, prev_md, prev_ref, curr_y, prev_u, c, umin, umax):
         """
         Updates consequent
 
         Keyword arguments:
-        curr_x -- current data sample of dimension XSIZE. 
         prev_md -- membership degree of the previous data sample related to this cloud.
         prev_ref -- previous reference value
         curr_y -- current plant output value
@@ -384,18 +399,18 @@ class DataCloud:
         e = prev_ref - curr_y
 
         # Calculate consequent differential
-        dq = C*prev_md*e
+        dq = c * prev_md * e
 
         # Checks if control signal maximum or minimum has been reached
         # to prevent penalization on these cases
-        if (prev_u == umin) and (dq < 0):
+        if (prev_u <= umin) and (dq < 0):
             dq = 0
-        if (prev_u == umax) and (dq > 0):
+        if (prev_u >= umax) and (dq > 0):
             dq = 0
 
         # Updates consequent
         q = self.get_consequent() + dq
-        self.zf[-1] = q 
+        self.zf[-1] = q
 
     def get_consequent(self):
         """
