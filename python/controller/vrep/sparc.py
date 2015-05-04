@@ -8,7 +8,7 @@ import math  # Square root
 
 # ------------------------ Classes  ---------------------------------#
 class SparcController:
-    def __init__(self, control_range, ref_range, input_size, init_input, init_output, init_ref, init_y,
+    def __init__(self, control_range, ref_range, input_size, init_input, init_ref, init_y,
                  init_data_clouds=None, dc_radius_const=0.5, k_init=1):
         """
         Initiates a sparc controller using the first sample.
@@ -42,18 +42,26 @@ class SparcController:
         self.g_csi = np.array([0.0] * (self.xsize + 1))
         self.g_b = 0.0
 
-        # Initial input and output:
-        self.curr_x = init_input
-        self.curr_u = init_output
-        self.curr_z = np.append(self.curr_x, self.curr_u)
-
-        # Start prev_ values:
-        self.prev_y = 0.0
-        self.prev_ref = 0.0
-        self.prev_u = 0.0
-
         # - Consequents normalization constant (Changes according to the current reference curve)
         self.c = float(self.umax - self.umin) / (self.refmax - self.refmin)
+
+        # Initial input
+        self.curr_x = init_input
+
+        # Initial consequent will be proportinal to the error.
+        q_init = self.c*(init_ref - init_y)
+        if q_init < self.umin:
+            q_init = self.umin
+        if q_init > self.umax:
+            q_init = self.umax
+
+        self.curr_z = np.append(self.curr_x, q_init)
+
+        # Start prev_ values (same as current values)
+        self.prev_y = init_y
+        self.prev_ref = init_ref
+        self.prev_u = 0.0
+
 
         if not self.clouds:
             # Initiates SPARC with the first cloud, with an initial
@@ -70,7 +78,7 @@ class SparcController:
             self.g_b = self.g_b + np.dot(self.curr_z, self.curr_z)
 
             # Store last sample
-            self.prev_u = self.curr_u
+            self.prev_u = q_init
             self.prev_y = init_y
             self.prev_ref = init_ref
             self.prev_md = np.copy(self.curr_md)
@@ -115,6 +123,11 @@ class SparcController:
         for i in range(len(self.clouds)):
             self.clouds[i].update_consequent(self.prev_md[i], self.prev_ref, curr_y,
                                              self.prev_u, self.c, self.umin, self.umax)
+            #Debugging
+            if i == 0:
+                print '#Clouds:', len(self.clouds)
+                print 'Consequent First Cloud:', self.clouds[i].get_consequent()
+
 
         # Calculate the new values of membership degrees, for the current sample.
         # Also finds out the data cloud that better describes the current sample. 
@@ -414,6 +427,8 @@ class DataCloud:
         umin, umax -- Control Signal range, use determine if the consequent should be penalized.
         """
 
+        print 'Update Cons: ', prev_md, prev_ref, curr_y, prev_u, c, umin, umax
+
         # Calculate relative error:
         e = prev_ref - curr_y
 
@@ -429,7 +444,10 @@ class DataCloud:
 
         # Updates consequent
         q = self.get_consequent() + dq
-        self.zf[-1] = q
+        self.set_consequent(q)
+
+    def set_consequent(self, new_consequent):
+        self.zf[-1] = new_consequent
 
     def get_consequent(self):
         """

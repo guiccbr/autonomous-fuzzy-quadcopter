@@ -97,8 +97,8 @@ def reference(k):
     k -- timestemp
     """
 
-    refk = 5.0
-    #refk = cos(0.005*k) + sin(0.007*k) + 3.7
+    #refk = 5.0
+    refk = cos(0.005*k) + sin(0.007*k) + 3.7
 
     return refk 
 

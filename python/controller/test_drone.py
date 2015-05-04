@@ -15,36 +15,46 @@ import quadcopter as quad
 import model
 
 # ------------------------ Constants  -------------------------------#
-# - Control Signal:
-UPARKED = 639.3    # Control signal sent to motors that is enough to balance 
-UMAX_ALT = 100.0     # Range Max
-UMIN_ALT = -100.0   # Range Min
-UMIN_PITCHROLL = -0.001
-UMAX_PITCHROLL = 0.001
-UMIN_YAW = -10.0
-UMAX_YAW = 10.0
 
-U1 = 0.0  # Start control signal
+# - Motor:
+MOTOR_KV = 980
+MOTOR_MAX_VOLTAGE = 11.1
+
+# - Control Signal:
+UPARKED = 1058.75                # Control signal sent to motors that is enough to balance
+
+UMIN_ALT = -50             # Range Min
+UMAX_ALT = +50             # Range Max
+
+UMIN_PITCHROLL = -10
+UMAX_PITCHROLL = +10
+
+UMIN_YAW = -10
+UMAX_YAW = +10
+
+# Not that:
+#   UMAX_ALT + UMAX_YAW + UMAX_PITCHROLL <= 2000 (MAX ENGINE CONTROL SIGNAL)
+#   UMIN_ALT + UMIN_YAW + UMIN_PITCHROLL >= 1000 (MIN ENGINE CONTROL SIGNAL)
 
 # - Input Signal (Measured by sensors on the plant)
 X_SIZE = 2  # Dimension of the input (measured by sensors of the plant)
 
 # - Plant output reference (Measured by sensors on the plant)
-REFMAX_ALT = 15.0     # Range Max
-REFMIN_ALT = -15.0    # Range Min
+REFMAX_ALT = 8.0     # Range Max
+REFMIN_ALT = 0.0    # Range Min
 
-REFMIN_PITCHROLL = -math.pi/10000.0
-REFMAX_PITCHROLL = math.pi/10000.0
+REFMIN_PITCHROLL = -45.0
+REFMAX_PITCHROLL = +45.0
 
-REFMIN_YAW = -math.pi/10
-REFMAX_YAW = math.pi/10
+REFMIN_YAW = -150.0
+REFMAX_YAW = +150.0
 
 # - Time Step
 STEPTIME = 0.1
 MAXTIME = 2000
 
 # - Noise Percentual
-NOISE = 0.10
+NOISE = 0.0
 
 
 # ------------------------ Main Program  ---------------------------#
@@ -83,9 +93,9 @@ def test_sparc_model(debug):
     # Start prev_ values:
     prev_y = [0.0, 0.0, 0.0, 0.0]
     prev_ref = [0.0, 0.0, 0.0, 0.0]
-    
-    # Starting u value:
-    curr_u = [U1, U1, U1, U1] 
+
+    # Reference
+    new_reference = True
 
     # Run for k steps
     k = 1
@@ -94,11 +104,21 @@ def test_sparc_model(debug):
         # Get sample, and generates input
 
         quad_position = quadcopter.x
-        quad_angles = quadcopter.theta # angles: [pitch, roll, yaw]
+        quad_angles = quadcopter.theta              # angles: [pitch, roll, yaw]
 
         # y : [alt, yaw, pitch, roll]
         curr_y = [quad_position[2], quad_angles[2], quad_angles[0], quad_angles[1]]
-        curr_ref = [reference(10, k, 20), 2.0, 0.0, 0.0]
+
+        # Set references.
+        curr_ref = [7.0, 0.0, 0.0, 0.0]
+
+        # If reference curve has changed, update C.
+        if k != 1 and new_reference:
+            controller_alt.update_reference_range(REFMIN_ALT, REFMAX_ALT)
+            controller_pitch.update_reference_range(REFMIN_PITCHROLL, REFMAX_PITCHROLL)
+            controller_roll.update_reference_range(REFMIN_PITCHROLL, REFMAX_PITCHROLL)
+            controller_yaw.update_reference_range(REFMIN_YAW, REFMAX_YAW)
+            new_reference = False
 
         # Adding Noise:
         curr_y = curr_y*(1+2*NOISE*np.random.rand(4))
@@ -139,6 +159,15 @@ def test_sparc_model(debug):
 
         # On the first iteration, initializes the controller with the first values
         if k == 1:
+
+            # Initial Control signal (defined as the error relative to the reference):
+            e_alt = curr_x[0][0]
+            e_yaw = curr_x[1][0]
+            e_pitch = curr_x[2][0]
+            e_roll = curr_x[3][0]
+
+            curr_u = [e_alt, e_yaw, e_pitch, e_roll]
+
             # Instantiates Controller and does not update model:
             controller_alt = sparc.SparcController((UMIN_ALT, UMAX_ALT), (REFMIN_ALT, REFMAX_ALT), X_SIZE, curr_x[0],
                                                    curr_u[0], curr_ref[0], curr_y[0])
@@ -150,17 +179,24 @@ def test_sparc_model(debug):
         else:
             # Gets the output of the controller for the current input x
             alt_u = controller_alt.update(curr_x[0], curr_y[0], curr_ref[0])
-            yaw_u = controller_yaw.update(curr_x[1], curr_y[1], curr_ref[1])
-            pitch_u = controller_pitch.update(curr_x[2], curr_y[2], curr_ref[2])
-            roll_u = controller_roll.update(curr_x[3], curr_y[3], curr_ref[3])
+            #yaw_u = controller_yaw.update(curr_x[1], curr_y[1], curr_ref[1])
+            #pitch_u = controller_pitch.update(curr_x[2], curr_y[2], curr_ref[2])
+            #roll_u = controller_roll.update(curr_x[3], curr_y[3], curr_ref[3])
 
-            curr_u = [alt_u, yaw_u, pitch_u, roll_u]
+            curr_u = [alt_u, 0.0, 0.0, 0.0]
 
-        # Speed on Engines:
+        # Convert control signals to speed on engines:
+        # Method I:
         m1 = UPARKED + curr_u[0] + curr_u[1] + curr_u[2]
         m2 = UPARKED + curr_u[0] - curr_u[1]             + curr_u[3]
         m3 = UPARKED + curr_u[0] + curr_u[1] - curr_u[2]
         m4 = UPARKED + curr_u[0] - curr_u[1]             - curr_u[3]
+
+        # Method 2 (from VREP quad model):
+        # m1 = UPARKED + curr_u[0]*(1 + curr_u[1] + curr_u[2])
+        # m2 = UPARKED + curr_u[0]*(1 - curr_u[1]             + curr_u[3])
+        # m3 = UPARKED + curr_u[0]*(1 + curr_u[1] - curr_u[2])
+        # m4 = UPARKED + curr_u[0]*(1 - curr_u[1]             - curr_u[3])
 
         # Stores on list for plotting:
         motor_points[0].append(m1)
@@ -175,7 +211,10 @@ def test_sparc_model(debug):
             print 'Engines: ', (m1, m2,m3,m4)
 
         # Updates the model
-        quadcopter.update(STEPTIME, (m1, m2, m3, m4))
+        quadcopter.update(STEPTIME, (conv_control_to_motor_speed(m1),
+                                     conv_control_to_motor_speed(m2),
+                                     conv_control_to_motor_speed(m3),
+                                     conv_control_to_motor_speed(m4)))
 
         # Increment K
         k += 1
@@ -212,9 +251,9 @@ def reference(A, k, t):
     """
 
     # Exponencial
-    # refk = A*(1-math.e**(-0.01*k))
+    refk = A*(1-math.e**(-0.01*k))
 
-    refk = 5*math.cos((2*math.pi/t)*k*STEPTIME) + 5*math.sin((1.4*2*math.pi/t)*k*STEPTIME) + 20
+    # refk = 5*math.cos((2*math.pi/t)*k*STEPTIME) + 5*math.sin((1.4*2*math.pi/t)*k*STEPTIME) + 20
 
     return refk
 
@@ -233,6 +272,10 @@ def generate_input(y, yprev, ref, refprev, t, gain=1):
     # x = np.array([curr_e, (curr_e-prev_e)/t])
     x = np.array([curr_e, (curr_e-prev_e)])
     return x
+
+def conv_control_to_motor_speed(m):
+    return ((m-1000.)/1000.)*(MOTOR_MAX_VOLTAGE*MOTOR_KV)
+
 
 # ------------------------ Run Main Program ------------------------#
 test_sparc_model(sys.argv[1])
