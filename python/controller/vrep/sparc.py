@@ -8,7 +8,7 @@ import math  # Square root
 
 # ------------------------ Classes  ---------------------------------#
 class SparcController:
-    def __init__(self, control_range, ref_range, input_size, init_input, init_output, init_ref, init_y,
+    def __init__(self, control_range, ref_range, input_size, init_input, init_ref, init_y,
                  init_data_clouds=None, dc_radius_const=0.5, k_init=1):
         """
         Initiates a sparc controller using the first sample.
@@ -42,18 +42,26 @@ class SparcController:
         self.g_csi = np.array([0.0] * (self.xsize + 1))
         self.g_b = 0.0
 
-        # Initial input and output:
-        self.curr_x = init_input
-        self.curr_u = init_output
-        self.curr_z = np.append(self.curr_x, self.curr_u)
-
-        # Start prev_ values:
-        self.prev_y = 0.0
-        self.prev_ref = 0.0
-        self.prev_u = 0.0
-
         # - Consequents normalization constant (Changes according to the current reference curve)
         self.c = float(self.umax - self.umin) / (self.refmax - self.refmin)
+
+        # Initial input
+        self.curr_x = init_input
+
+        # Initial consequent will be proportinal to the error.
+        q_init = self.c*(init_ref - init_y)
+        if q_init < self.umin:
+            q_init = self.umin
+        if q_init > self.umax:
+            q_init = self.umax
+
+        self.curr_z = np.append(self.curr_x, q_init)
+
+        # Start prev_ values (same as current values)
+        self.prev_y = init_y
+        self.prev_ref = init_ref
+        self.prev_u = 0.0
+
 
         if not self.clouds:
             # Initiates SPARC with the first cloud, with an initial
@@ -70,7 +78,7 @@ class SparcController:
             self.g_b = self.g_b + np.dot(self.curr_z, self.curr_z)
 
             # Store last sample
-            self.prev_u = self.curr_u
+            self.prev_u = q_init
             self.prev_y = init_y
             self.prev_ref = init_ref
             self.prev_md = np.copy(self.curr_md)
@@ -188,7 +196,7 @@ class SparcController:
 
             # Creates new cloud with focal point zk and starting sigma
             self.clouds.append(DataCloud(curr_z, sigma, self.radius_update_const))
-            self.curr_md = np.append(self.curr_md, 0.0)
+            self.curr_md = np.append(self.curr_md, 1.0)
         else:
             # Computes cxk focal point global density (to check if focal point has to change)
             gdf = self.get_global_density(self.g_csi, self.g_b, self.clouds[curr_x_cloud].zf, self.k)
@@ -358,6 +366,12 @@ class DataCloud:
         #         (self.m - 1) * prev_variance + (x[i] - self.centroid[i]) * (x[i] - new_centroid[i]))
 
         # Calulate and Update New Variance (NEW WAY _ WITH FOCAL POINT)
+        # for i in range(0, len(self.variance)):
+        #     # dist_x_f = self.zf[:self.xsize] - x
+        #     dist_z_f = self.zf - curr_z
+        #     self.variance[i] = self.variance[i]*float(self.m-1)/self.m + np.dot(dist_z_f, dist_z_f)/float(self.m-1)
+
+        # Calulate and Update New Variance (NEW WAY _ WITH FOCAL POINT)
         for i in range(0, len(self.variance)):
             dist_x_f = self.zf[:self.xsize] - x
             self.variance[i] = self.variance[i]*float(self.m-1)/self.m + np.dot(dist_x_f, dist_x_f)/float(self.m-1)
@@ -429,7 +443,10 @@ class DataCloud:
 
         # Updates consequent
         q = self.get_consequent() + dq
-        self.zf[-1] = q
+        self.set_consequent(q)
+
+    def set_consequent(self, new_consequent):
+        self.zf[-1] = new_consequent
 
     def get_consequent(self):
         """
