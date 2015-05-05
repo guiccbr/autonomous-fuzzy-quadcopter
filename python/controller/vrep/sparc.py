@@ -123,11 +123,6 @@ class SparcController:
         for i in range(len(self.clouds)):
             self.clouds[i].update_consequent(self.prev_md[i], self.prev_ref, curr_y,
                                              self.prev_u, self.c, self.umin, self.umax)
-            #Debugging
-            if i == 0:
-                print '#Clouds:', len(self.clouds)
-                print 'Consequent First Cloud:', self.clouds[i].get_consequent()
-
 
         # Calculate the new values of membership degrees, for the current sample.
         # Also finds out the data cloud that better describes the current sample. 
@@ -201,7 +196,7 @@ class SparcController:
 
             # Creates new cloud with focal point zk and starting sigma
             self.clouds.append(DataCloud(curr_z, sigma, self.radius_update_const))
-            self.curr_md = np.append(self.curr_md, 0.0)
+            self.curr_md = np.append(self.curr_md, 1.0)
         else:
             # Computes cxk focal point global density (to check if focal point has to change)
             gdf = self.get_global_density(self.g_csi, self.g_b, self.clouds[curr_x_cloud].zf, self.k)
@@ -371,6 +366,12 @@ class DataCloud:
         #         (self.m - 1) * prev_variance + (x[i] - self.centroid[i]) * (x[i] - new_centroid[i]))
 
         # Calulate and Update New Variance (NEW WAY _ WITH FOCAL POINT)
+        # for i in range(0, len(self.variance)):
+        #     # dist_x_f = self.zf[:self.xsize] - x
+        #     dist_z_f = self.zf - curr_z
+        #     self.variance[i] = self.variance[i]*float(self.m-1)/self.m + np.dot(dist_z_f, dist_z_f)/float(self.m-1)
+
+        # Calulate and Update New Variance (NEW WAY _ WITH FOCAL POINT)
         for i in range(0, len(self.variance)):
             dist_x_f = self.zf[:self.xsize] - x
             self.variance[i] = self.variance[i]*float(self.m-1)/self.m + np.dot(dist_x_f, dist_x_f)/float(self.m-1)
@@ -426,8 +427,6 @@ class DataCloud:
         C -- Consequent constant calculated by: C = (UMAX - UMIN)/(REFMAX - REFMIN)
         umin, umax -- Control Signal range, use determine if the consequent should be penalized.
         """
-
-        print 'Update Cons: ', prev_md, prev_ref, curr_y, prev_u, c, umin, umax
 
         # Calculate relative error:
         e = prev_ref - curr_y

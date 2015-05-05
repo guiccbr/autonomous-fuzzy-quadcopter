@@ -15,7 +15,7 @@ from socket_server import serve_socket
 from geometry import rotate
 import math
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
+import pickle
 
 # ------------------------ Helpers ----------------------------------#
 
@@ -63,8 +63,8 @@ UPARKED = 24.47
 UMIN_ALT = -4.0             # Range Min
 UMAX_ALT = +4.0             # Range Max
 
-UMIN_PITCHROLL = -5.0
-UMAX_PITCHROLL = +5.0
+UMIN_PITCHROLL = -20.0
+UMAX_PITCHROLL = +20.0
 
 UMIN_YAW = -8.0
 UMAX_YAW = +8.0
@@ -95,9 +95,11 @@ GPS_NOISE_METERS = 0
 # - Noise Percentual
 NOISE = 0.0
 
+CONTROL_INIT_PATH = '/Users/gcc/Dropbox/Projects/gitRepos/github-tfc-drone/python/controller/vrep/dumped_controllers/'
+
 
 # ------------------------ Main Program  ---------------------------#
-def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, control_yaw=True):
+def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, recordfiles=[True]*4):
 
     # Connect to Client (VREP)
     client = serve_socket(int(argv[1]))
@@ -106,35 +108,35 @@ def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, co
     pyquadsim_directory = receiveString(client)
 
     # Instantiates figure for plotting motor angular velocities:
-    fig_motors = plt.figure('Motors')
+    fig_motors = plt.figure('Motors', figsize=(10, 8))
     axes_motors = fig_motors.add_axes([0.1, 0.1, 0.8, 0.8])
     motor_points = [[], [],[],[]]
     # Instantiates figure for plotting alt results:
-    fig_alt = plt.figure('Quadcopter alt')
+    fig_alt = plt.figure('Quadcopter alt', figsize=(10, 8))
     axes_alt = fig_alt.add_axes([0.1, 0.1, 0.8, 0.8])
     ypoints_alt = []
     refpoints_alt = []
 
     # Instantiates figure for plotting pitch results:
-    fig_pitch = plt.figure('Quadcopter pitch')
+    fig_pitch = plt.figure('Quadcopter pitch', figsize=(10, 8))
     axes_pitch = fig_pitch.add_axes([0.1, 0.1, 0.8, 0.8])
     ypoints_pitch = []
     refpoints_pitch = []
 
     # Instantiates figure for plotting roll results:
-    fig_roll = plt.figure('Quadcopter roll')
+    fig_roll = plt.figure('Quadcopter roll', figsize=(10, 8))
     axes_roll = fig_roll.add_axes([0.1, 0.1, 0.8, 0.8])
     ypoints_roll = []
     refpoints_roll = []
 
     # Instantiates figure for plotting yaw results:
-    fig_yaw = plt.figure('Quadcopter yaw')
+    fig_yaw = plt.figure('Quadcopter yaw', figsize=(10, 8))
     axes_yaw = fig_yaw.add_axes([0.1, 0.1, 0.8, 0.8])
     ypoints_yaw = []
     refpoints_yaw = []
 
     # Instantiates figure for plotting control signals:
-    fig_control, (ax_c_alt, ax_c_yaw, ax_c_pitch, ax_c_roll) = plt.subplots(4, 1,  sharex=True, sharey=True)
+    fig_control, (ax_c_alt, ax_c_yaw, ax_c_pitch, ax_c_roll) = plt.subplots(4, 1,  sharex=True, sharey=True, figsize=(10, 8))
     ax_c_alt.set_title('Alt')
     ax_c_yaw.set_title('Yaw')
     ax_c_pitch.set_title('Pitch')
@@ -145,16 +147,16 @@ def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, co
     c_yaw_points = []
 
     # Instantiates figure for plotting clouds:
-    fig_clouds = plt.figure()
+    fig_clouds = plt.figure('Data Clouds', figsize=(10, 8))
     ax_cloud_alt = fig_clouds.add_subplot(221)
     ax_cloud_alt.set_title('Alt')
-    
+
     ax_cloud_yaw = fig_clouds.add_subplot(222)
     ax_cloud_yaw.set_title('Yaw')
-    
+
     ax_cloud_pitch = fig_clouds.add_subplot(223)
     ax_cloud_pitch.set_title('Pitch')
-    
+
     ax_cloud_roll = fig_clouds.add_subplot(224)
     ax_cloud_roll.set_title('Roll')
 
@@ -164,6 +166,25 @@ def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, co
     # Forever loop will be halted by VREP client or by exception
     first_iteration = True
     k = 1 # Iterations Counter
+
+    # Read Starting clouds from files:
+    if readfiles[0]:
+        f_controller_alt_init = open(CONTROL_INIT_PATH + 'controller_alt_init')
+        controller_alt_init = pickle.load(f_controller_alt_init)
+        if print_stuff: print 'SPARC: Alt Controller Loaded', f_controller_alt_init.name
+    if readfiles[1]:
+        f_controller_yaw_init = open(CONTROL_INIT_PATH + 'controller_yaw_init')
+        controller_yaw_init = pickle.load(f_controller_yaw_init)
+        if print_stuff: print 'SPARC: Yaw Controller Loaded', f_controller_yaw_init.name
+    if readfiles[2]:
+        f_controller_pitch_init = open(CONTROL_INIT_PATH + 'controller_pitch_init')
+        controller_pitch_init = pickle.load(f_controller_pitch_init)
+        if print_stuff: print 'SPARC: Pitch Controller Loaded', f_controller_pitch_init.name
+    if readfiles[3]:
+        f_controller_roll_init = open(CONTROL_INIT_PATH + 'controller_roll_init')
+        controller_roll_init = pickle.load(f_controller_roll_init)
+        if print_stuff: print 'SPARC: Roll Controller Loaded', f_controller_roll_init.name
+
 
     prev_yaw = 0.0
     prev_pitch = 0.0
@@ -176,14 +197,16 @@ def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, co
         # Get core data from client
         clientData = receiveFloats(client, 7)
 
-        print 'SPARC: k=',k
-        print 'SPARC: ClientData Received:'
+        if print_stuff: print 'SPARC: k=',k
+        if print_stuff: print 'SPARC: ClientData Received:'
 
         #if not clientData:
          #   break
 
         # Quit on timeout
-        if not clientData: break
+        if not clientData:
+            break
+
 
         # Unpack IMU data
         timestepSeconds = clientData[0]
@@ -230,7 +253,7 @@ def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, co
         # y : [alt, yaw, pitch, roll]
         curr_y = [altitudeMeters, curr_yaw, curr_pitch, curr_roll]
 
-        print 'SPARC: ROLL = ', curr_roll
+        if print_stuff: print 'SPARC: ROLL = ', curr_roll
 
         # Set References.
         curr_ref = [0.0, 0.0, 0.0, 1.0]
@@ -242,13 +265,13 @@ def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, co
 
         # If reference curve has changed, update C.
         if (not first_iteration) and new_reference:
-            if control_alt:
+            if control[0]:
                 controller_alt.update_reference_range(REFMIN_ALT, REFMAX_ALT)
-            if control_pitch:
+            if control[2]:
                 controller_pitch.update_reference_range(REFMIN_PITCHROLL, REFMAX_PITCHROLL)
-            if control_roll:
+            if control[3]:
                 controller_roll.update_reference_range(REFMIN_PITCHROLL, REFMAX_PITCHROLL)
-            if control_yaw:
+            if control[1]:
                 controller_yaw.update_reference_range(REFMIN_YAW, REFMAX_YAW)
             new_reference = False
 
@@ -275,15 +298,15 @@ def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, co
         ypoints_yaw.append(curr_y[1])
         refpoints_yaw.append(curr_ref[1])
 
-        # Print result (curr_ref - curr_y)
-        # print "Step:", k, " | y:", curr_y, " | err:", np.subtract(curr_y,curr_ref).tolist(), " | u:", curr_u
+        # if print_stuff: print result (curr_ref - curr_y)
+        # if print_stuff: print "Step:", k, " | y:", curr_y, " | err:", np.subtract(curr_y,curr_ref).tolist(), " | u:", curr_u
 
         prev_y = curr_y[:]
         prev_ref = curr_ref[:]
 
         # if k % 100 == 0:
-        #     print 't[s]:', k*timestepSeconds
-        #     print '#clouds:', 'alt =', len(controller_alt.clouds),\
+        #     if print_stuff: print 't[s]:', k*timestepSeconds
+        #     if print_stuff: print '#clouds:', 'alt =', len(controller_alt.clouds),\
         #         'yaw =', len(controller_yaw.clouds),\
         #         'pitch =', len(controller_pitch.clouds),\
         #         'roll =', len(controller_roll.clouds)
@@ -294,57 +317,78 @@ def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, co
             curr_u = [0., 0., 0., 0.]
 
             # Instantiates Controller and does not update model:
-            controller_alt = sparc.SparcController((UMIN_ALT, UMAX_ALT), (REFMIN_ALT, REFMAX_ALT),
+
+            # Altitude Controller
+            if readfiles[0]:
+                controller_alt = controller_alt_init
+                curr_u[0] = controller_alt.update(curr_x[0], curr_y[0], curr_ref[0]) if control[0] else 0.0
+            else:
+                controller_alt = sparc.SparcController((UMIN_ALT, UMAX_ALT), (REFMIN_ALT, REFMAX_ALT),
                                                     X_SIZE, curr_x[0], curr_ref[0], curr_y[0])
-            controller_yaw = sparc.SparcController((UMIN_YAW, UMAX_YAW), (REFMIN_YAW, REFMAX_YAW),
+                curr_u[0] = controller_alt.clouds[0].get_consequent() if control[0] else 0.0
+
+            # Yaw Controller
+            if readfiles[1]:
+                controller_yaw = controller_yaw_init
+                curr_u[1] = controller_yaw.update(curr_x[1], curr_y[1], curr_ref[1]) if control[1] else 0.0
+            else:
+                controller_yaw = sparc.SparcController((UMIN_YAW, UMAX_YAW), (REFMIN_YAW, REFMAX_YAW),
                                                    X_SIZE, curr_x[1], curr_ref[1], curr_y[1])
-            controller_pitch = sparc.SparcController((UMIN_PITCHROLL, UMAX_PITCHROLL),
+                curr_u[1] = controller_yaw.clouds[0].get_consequent() if control[1] else 0.0
+
+            # Pitch Controller
+            if readfiles[2]:
+                controller_pitch = controller_pitch_init
+                curr_u[2] = controller_pitch.update(curr_x[2], curr_y[2], curr_ref[2]) if control[2] else 0.0
+            else:
+                controller_pitch = sparc.SparcController((UMIN_PITCHROLL, UMAX_PITCHROLL),
                                                       (REFMIN_PITCHROLL, REFMAX_PITCHROLL),
                                                       X_SIZE, curr_x[2], curr_ref[2], curr_y[2])
-            controller_roll = sparc.SparcController((UMIN_PITCHROLL, UMAX_PITCHROLL),
+                curr_u[2] = controller_pitch.clouds[0].get_consequent() if control[2] else 0.0
+
+            # Roll Controller
+            if readfiles[3]:
+                controller_roll = controller_roll_init
+                curr_u[3] = controller_roll.update(curr_x[3], curr_y[3], curr_ref[3]) if control[3] else 0.0
+            else:
+                controller_roll = sparc.SparcController((UMIN_PITCHROLL, UMAX_PITCHROLL),
                                                       (REFMIN_PITCHROLL, REFMAX_PITCHROLL),
                                                       X_SIZE, curr_x[3], curr_ref[3], curr_y[3])
-
-            curr_u[0] = controller_alt.clouds[0].get_consequent() if control_alt else 0.0
-            curr_u[1] = controller_yaw.clouds[0].get_consequent() if control_yaw else 0.0
-            curr_u[2] = controller_pitch.clouds[0].get_consequent() if control_pitch else 0.0
-            curr_u[3] = controller_roll.clouds[0].get_consequent() if control_roll else 0.0
-
+                curr_u[3] = controller_roll.clouds[0].get_consequent() if control[3] else 0.0
 
             first_iteration = False
 
         else:
 
-            # Print tested inputs
-            if control_alt:
-                print 'SPARC: Alt_input = ', curr_x[0], curr_y[0], curr_ref[0]
-            if control_yaw:
-                print 'SPARC: Yaw_input = ', curr_x[1], curr_y[1], curr_ref[1]
-            if control_pitch:
-                print 'SPARC: Pitch_input = ', curr_x[2], curr_y[2], curr_ref[2]
-            if control_roll:
-                print 'SPARC: Roll_input = ', curr_x[3], curr_y[3], curr_ref[3]
-
+            # if print_stuff: print tested inputs
+            if control[0]:
+                if print_stuff: print 'SPARC: Alt_input = ', curr_x[0], curr_y[0], curr_ref[0]
+            if control[1]:
+                if print_stuff: print 'SPARC: Yaw_input = ', curr_x[1], curr_y[1], curr_ref[1]
+            if control[2]:
+                if print_stuff: print 'SPARC: Pitch_input = ', curr_x[2], curr_y[2], curr_ref[2]
+            if control[3]:
+                if print_stuff: print 'SPARC: Roll_input = ', curr_x[3], curr_y[3], curr_ref[3]
 
             # Gets the output of the controller for the current input x
-            if control_alt:
+            if control[0]:
                 alt_u = controller_alt.update(curr_x[0], curr_y[0], curr_ref[0])
-            if control_yaw:
+            if control[1]:
                 yaw_u = controller_yaw.update(curr_x[1], curr_y[1], curr_ref[1])
-            if control_pitch:
+            if control[2]:
                 pitch_u = controller_pitch.update(curr_x[2], curr_y[2], curr_ref[2])
-            if control_roll:
+            if control[3]:
                 roll_u = controller_roll.update(curr_x[3], curr_y[3], curr_ref[3])
 
-            # print 'SPARC: Yaw_control = ', yaw_u
+            # if print_stuff: print 'SPARC: Yaw_control = ', yaw_u
 
             # curr_u = [alt_u, yaw_u, pitch_u, roll_u]
             curr_u = [0.0, 0.0, 0.0, 0.0]
 
-            curr_u[0] = alt_u if control_alt else 0.0
-            curr_u[1] = yaw_u if control_yaw else 0.0
-            curr_u[2] = pitch_u if control_pitch else 0.0
-            curr_u[3] = roll_u if control_roll else 0.0
+            curr_u[0] = alt_u if control[0] else 0.0
+            curr_u[1] = yaw_u if control[1] else 0.0
+            curr_u[2] = pitch_u if control[2] else 0.0
+            curr_u[3] = roll_u if control[3] else 0.0
 
 
         # Speed on Engines:
@@ -367,18 +411,18 @@ def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, co
 
         # Send speed to Engines
         sendFloats(client, motors)
-        print 'SPARC: Control Signal Sent!'
-        print 'SPARC: Control Signal: ', curr_u
+        if print_stuff: print 'SPARC: Control Signal Sent!'
+        if print_stuff: print 'SPARC: Control Signal: ', curr_u
 
         # debug = 'T'
         # if debug == 'T':
-        #     print 'SPARC: #CloudsYaw= ', len(controller_yaw.clouds)
+        #     if print_stuff: print 'SPARC: #CloudsYaw= ', len(controller_yaw.clouds)
 
         # Increment K
         k += 1
 
-    # Plotting
-    if k > 50:
+    # Plotting and saving
+    if k > 10:
         kpoints = [x*float(timestepSeconds) for x in range(1, k)]
 
         # Plot Motors
@@ -411,21 +455,65 @@ def test_sparc_model(control_alt=True, control_pitch=True, control_roll=True, co
         ax_c_yaw.plot(kpoints, c_yaw_points, 'g')
 
         # Plot Clouds
-        if control_alt:
+        e = []
+        de = []
+        u = []
+        if control[0]:
             for c in controller_alt.clouds:
-                ax_cloud_alt.scatter(c.zf[0], c.zf[1])
-                #ax_cloud_alt.annotate(str(c.zf[2]), xy=(c.zf[0], c.zf[1]))
-        if control_pitch:
-            for c in controller_pitch.clouds:
-                ax_cloud_pitch.scatter(c.zf[0], c.zf[1], c.zf[2])
-        if control_roll:
-            for c in controller_roll.clouds:
-                ax_cloud_roll.scatter(c.zf[0], c.zf[1])
-                ax_cloud_roll.annotate(str(c.get_consequent()), xy=(c.zf[0], c.zf[1]))
-        if control_yaw:
+                e.append(c.zf[0])
+                de.append(c.zf[1])
+                u.append(c.zf[2])
+            im_alt = ax_cloud_yaw.scatter(e, de, c=u, cmap=plt.cm.jet)
+            ax_cloud_alt.set_xlabel('Error')
+            ax_cloud_alt.set_ylabel('DError')
+            plt.colorbar(im_alt, ax=ax_cloud_alt)
+            if recordfiles[0]:
+                f_alt = open(CONTROL_INIT_PATH+'controller_alt_init', 'w')
+                pickle.dump(controller_alt, f_alt)
+                f_alt.close()
+                if print_stuff: print 'SPARC: Controller Serialized', f_alt.name
+        if control[1]:
             for c in controller_yaw.clouds:
-                ax_cloud_yaw.scatter(c.zf[0], c.zf[1], c.zf[2])
-
+                e.append(c.zf[0])
+                de.append(c.zf[1])
+                u.append(c.zf[2])
+            im_yaw = ax_cloud_yaw.scatter(e, de, c=u, cmap=plt.cm.jet)
+            ax_cloud_yaw.set_xlabel('Error')
+            ax_cloud_yaw.set_ylabel('DError')
+            plt.colorbar(im_yaw, ax=ax_cloud_yaw)
+            if recordfiles[1]:
+                f_yaw = open(CONTROL_INIT_PATH+'controller_yaw_init', 'w')
+                pickle.dump(controller_yaw, f_yaw)
+                f_yaw.close()
+                if print_stuff: print 'SPARC: Controller Serialized', f_yaw.name
+        if control[2]:
+            for c in controller_pitch.clouds:
+                e.append(c.zf[0])
+                de.append(c.zf[1])
+                u.append(c.zf[2])
+            im_pitch = ax_cloud_pitch.scatter(e, de, c=u, cmap=plt.cm.jet)
+            ax_cloud_pitch.set_xlabel('Error')
+            ax_cloud_pitch.set_ylabel('DError')
+            plt.colorbar(im_pitch, ax=ax_cloud_pitch)
+            if recordfiles[2]:
+                f_pitch = open(CONTROL_INIT_PATH+'controller_pitch_init', 'w')
+                pickle.dump(controller_pitch, f_pitch)
+                f_pitch.close()
+                if print_stuff: print 'SPARC: Controller Serialized', f_pitch.name
+        if control[3]:
+            for c in controller_roll.clouds:
+                e.append(c.zf[0])
+                de.append(c.zf[1])
+                u.append(c.zf[2])
+            im_roll = ax_cloud_roll.scatter(e, de, c=u, cmap=plt.cm.jet)
+            ax_cloud_roll.set_xlabel('Error')
+            ax_cloud_roll.set_ylabel('DError')
+            plt.colorbar(im_roll, ax=ax_cloud_roll)
+            if recordfiles[3]:
+                f_roll = open(CONTROL_INIT_PATH+'controller_roll_init', 'w')
+                pickle.dump(controller_roll, f_roll)
+                f_roll.close()
+                if print_stuff: print 'SPARC: Controller Serialized', f_roll.name
 
         plt.show()
 
@@ -460,4 +548,4 @@ def generate_input(y, yprev, ref, refprev, t, gain=1):
     return x
 
 # ------------------------ Run Main Program ------------------------#
-test_sparc_model(control_alt=False, control_pitch=False, control_roll=True, control_yaw=False)
+test_sparc_model(print_stuff = False, control=[False, False, False, True], readfiles = [False, False, False, False], recordfiles = [False, False, False, True])
