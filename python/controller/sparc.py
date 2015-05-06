@@ -8,7 +8,7 @@ import math  # Square root
 
 # ------------------------ Classes  ---------------------------------#
 class SparcController:
-    def __init__(self, control_range, ref_range, input_size, init_input, init_output, init_ref, init_y,
+    def __init__(self, control_range, ref_range, input_size, init_input, init_ref, init_y,
                  init_data_clouds=None, dc_radius_const=0.5, k_init=1):
         """
         Initiates a sparc controller using the first sample.
@@ -42,18 +42,26 @@ class SparcController:
         self.g_csi = np.array([0.0] * (self.xsize + 1))
         self.g_b = 0.0
 
-        # Initial input and output:
-        self.curr_x = init_input
-        self.curr_u = init_output
-        self.curr_z = np.append(self.curr_x, self.curr_u)
-
-        # Start prev_ values:
-        self.prev_y = 0.0
-        self.prev_ref = 0.0
-        self.prev_u = 0.0
-
         # - Consequents normalization constant (Changes according to the current reference curve)
         self.c = float(self.umax - self.umin) / (self.refmax - self.refmin)
+
+        # Initial input
+        self.curr_x = init_input
+
+        # Initial consequent will be proportinal to the error.
+        q_init = self.c*(init_ref - init_y)
+        if q_init < self.umin:
+            q_init = self.umin
+        if q_init > self.umax:
+            q_init = self.umax
+
+        self.curr_z = np.append(self.curr_x, q_init)
+
+        # Start prev_ values (same as current values)
+        self.prev_y = init_y
+        self.prev_ref = init_ref
+        self.prev_u = 0.0
+
 
         if not self.clouds:
             # Initiates SPARC with the first cloud, with an initial
@@ -70,7 +78,7 @@ class SparcController:
             self.g_b = self.g_b + np.dot(self.curr_z, self.curr_z)
 
             # Store last sample
-            self.prev_u = self.curr_u
+            self.prev_u = q_init
             self.prev_y = init_y
             self.prev_ref = init_ref
             self.prev_md = np.copy(self.curr_md)
@@ -111,13 +119,13 @@ class SparcController:
         u -- output respective to curr_x (float)
         """
 
-        # Updates the consequents of all clouds 
+        # Updates the consequents of all clouds
         for i in range(len(self.clouds)):
             self.clouds[i].update_consequent(self.prev_md[i], self.prev_ref, curr_y,
                                              self.prev_u, self.c, self.umin, self.umax)
 
         # Calculate the new values of membership degrees, for the current sample.
-        # Also finds out the data cloud that better describes the current sample. 
+        # Also finds out the data cloud that better describes the current sample.
         ld_sum = 0.0
         curr_x_cloud = 0  # Index of the Best cloud.
         curr_x_cloud_ld = 0.0  # Best cloud local density.
@@ -188,7 +196,7 @@ class SparcController:
 
             # Creates new cloud with focal point zk and starting sigma
             self.clouds.append(DataCloud(curr_z, sigma, self.radius_update_const))
-            self.curr_md = np.append(self.curr_md, 0.0)
+            self.curr_md = np.append(self.curr_md, 1.0)
         else:
             # Computes cxk focal point global density (to check if focal point has to change)
             gdf = self.get_global_density(self.g_csi, self.g_b, self.clouds[curr_x_cloud].zf, self.k)
@@ -261,7 +269,7 @@ class DataCloud:
     Class that represents a data cloud.
 
     It stores the following information in the form of instance variables:
-    zf -- Focal point, composed by xf (data sample) and q (consequent) 
+    zf -- Focal point, composed by xf (data sample) and q (consequent)
     csi, betha -- parameters for recursively calculation of local density
     r -- array of radii, one for each dimension of X.
     sigma_sq -- parameter for recursively calculation of radii. (variance)
@@ -283,7 +291,7 @@ class DataCloud:
         # Set radius update constant
         self.radius_update_const = radius_update_const
 
-        # Gets plant input (x) and control signal (u) 
+        # Gets plant input (x) and control signal (u)
         # from z where z = [x', u']', setting them
         # as focal point (xf) and consequent (q) respectively.
         self.zf = z
@@ -307,7 +315,7 @@ class DataCloud:
 
         # Local Scatter square (sigma_square), has to be stored for recursive calculation of
         # the radius. For each dimension of x, there's a sigma associated to it.
-        # By definition the initial sigma sigma1 is 1 if not provided 
+        # By definition the initial sigma sigma1 is 1 if not provided
         self.variance = sigma[:]
 
         # Besides, for calculating sigma recursively, the centroid has to be
@@ -321,7 +329,7 @@ class DataCloud:
         updates radius or variance. Usually add_point is called right after.
 
         Keyword arguments:
-        z -- datacloud point composed by x (data sample) and u (control signal) 
+        z -- datacloud point composed by x (data sample) and u (control signal)
         """
         self.zf = z
 
@@ -341,7 +349,7 @@ class DataCloud:
         The local scatter ( sigma ) is needed to update the radius.
 
         Keyword arguments:
-        curr_z -- Last added sample 
+        curr_z -- Last added sample
         """
         # Extract X and centroid
         x = curr_z[:self.xsize]
@@ -358,6 +366,12 @@ class DataCloud:
         #         (self.m - 1) * prev_variance + (x[i] - self.centroid[i]) * (x[i] - new_centroid[i]))
 
         # Calulate and Update New Variance (NEW WAY _ WITH FOCAL POINT)
+        # for i in range(0, len(self.variance)):
+        #     # dist_x_f = self.zf[:self.xsize] - x
+        #     dist_z_f = self.zf - curr_z
+        #     self.variance[i] = self.variance[i]*float(self.m-1)/self.m + np.dot(dist_z_f, dist_z_f)/float(self.m-1)
+
+        # Calulate and Update New Variance (NEW WAY _ WITH FOCAL POINT)
         for i in range(0, len(self.variance)):
             dist_x_f = self.zf[:self.xsize] - x
             self.variance[i] = self.variance[i]*float(self.m-1)/self.m + np.dot(dist_x_f, dist_x_f)/float(self.m-1)
@@ -371,7 +385,7 @@ class DataCloud:
         updating local density values, sigma and radius.
 
         Keyword arguments:
-        curr_z -- datacloud point composed by x (data sample) and u (control signal) 
+        curr_z -- datacloud point composed by x (data sample) and u (control signal)
         """
 
         # Update number of points
@@ -386,7 +400,7 @@ class DataCloud:
         # Update radius
         self.__update_radius__()
 
-        # Update local density values 
+        # Update local density values
         self.csi = np.add(self.csi, x)
         self.betha = self.betha + np.dot(x, x)
 
@@ -427,9 +441,14 @@ class DataCloud:
         if (prev_u >= umax) and (dq > 0):
             dq = 0
 
+        q = self.get_consequent()
+        q = q+dq
+
         # Updates consequent
-        q = self.get_consequent() + dq
-        self.zf[-1] = q
+        self.set_consequent(q)
+
+    def set_consequent(self, new_consequent):
+        self.zf[-1] = new_consequent
 
     def get_consequent(self):
         """
