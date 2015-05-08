@@ -57,7 +57,7 @@ class quadcopter():
     
     def angular_acceleration(self,inputs, omega, I, L, b, k):
         tau = self.torques(inputs, L, b, k)
-        omegad = np.dot(np.linalg.inv(I), np.subtract(tau, np.cross(omega, np.dot(I, omega))))      
+        omegad = np.dot(np.linalg.inv(I), np.subtract(tau, np.cross(omega, np.dot(I, omega))))
         # Filtering
         omegad = self.filterArray(omegad, 1e-14)
         return omegad
