@@ -24,12 +24,10 @@ def send_floats(client, data):
 
 
 def unpack_floats(msg, nfloats):
-
-    return struct.unpack('f'*nfloats, msg)
+    return struct.unpack('f' * nfloats, msg)
 
 
 def receive_floats(client, nfloats):
-
     # We use 32-bit floats
     msgsize = 4 * nfloats
 
@@ -40,47 +38,46 @@ def receive_floats(client, nfloats):
     while remaining > 0:
         msg += client.recv(remaining)
         remaining -= len(msg)
-        if (time.time()-start_sec) > TIMEOUT_SEC:
+        if (time.time() - start_sec) > TIMEOUT_SEC:
             return None
 
     return unpack_floats(msg, nfloats)
 
 
 def receive_string(client):
-
     return client.recv(int(receive_floats(client, 1)[0]))
 
 # ------------------------ Constants  -------------------------------#
 
-DEG2RAD = math.pi/180.0
-RAD2DEG = 180.0/math.pi
+DEG2RAD = math.pi / 180.0
+RAD2DEG = 180.0 / math.pi
 
 # - Motor:
 MOTOR_KV = 980
 MOTOR_MAX_VOLTAGE = 11.1
 
 # - Control Signal:
-UPARKED = 24.47
+UPARKED = 24.48
 
-UMIN_ALT = -10.0             # Range Min
-UMAX_ALT = +10.0            # Range Max
+UMIN_ALT = -14.0  # Range Min
+UMAX_ALT = +14.0  # Range Max
 
-UMIN_PITCHROLL = -8.0
-UMAX_PITCHROLL = +8.0
+UMIN_PITCHROLL = -0.4
+UMAX_PITCHROLL = +0.4
 
-UMIN_YAW = -15.0
-UMAX_YAW = +15.0
+UMIN_YAW = -0.1
+UMAX_YAW = +0.1
 
 # Note that:
-#   UMAX_ALT + UMAX_YAW + UMAX_PITCHROLL <= 2000 (MAX ENGINE CONTROL SIGNAL)
+# UMAX_ALT + UMAX_YAW + UMAX_PITCHROLL <= 2000 (MAX ENGINE CONTROL SIGNAL)
 #   UMIN_ALT + UMIN_YAW + UMIN_PITCHROLL >= 1000 (MIN ENGINE CONTROL SIGNAL)
 
 # - Input Signal (Measured by sensors on the plant)
 X_SIZE = 2  # Dimension of the input (measured by sensors of the plant)
 
 # - Plant output reference (Measured by sensors on the plant)
-REFMAX_ALT = 5.0     # Range Max
-REFMIN_ALT = 0.0    # Range Min
+REFMAX_ALT = 2.0  # Range Max
+REFMIN_ALT = 0.0  # Range Min
 
 REFMIN_PITCHROLL = 0.0 * DEG2RAD
 REFMAX_PITCHROLL = 30.0 * DEG2RAD
@@ -99,20 +96,30 @@ NOISE = 0.0
 
 CONTROL_INIT_PATH = '/Users/gcc/Dropbox/Projects/gitRepos/github-tfc-drone/python/controller/vrep/dumped_controllers/'
 
+# Artifical Damping
+Kv_pr = 10. / (REFMAX_PITCHROLL - REFMIN_PITCHROLL)
+Kv_y = 10. / (REFMAX_YAW - REFMIN_YAW)
+Kv_h = 200. / (REFMAX_ALT - REFMIN_ALT)
+
+
 
 # ------------------------ Main Program  ---------------------------#
-def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, recordfiles=[True]*4):
-
+def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4, recordfiles=[True] * 4):
     # Connect to Client (VREP)
     client = serve_socket(int(argv[1]))
 
     # Receive working directory path from client
     pyquadsim_directory = receive_string(client)
 
+    # List for plotting time axis
+    kpoints = []
+    time_elapsed = 0.0
+
     # Instantiates figure for plotting motor angular velocities:
     fig_motors = plt.figure('Motors', figsize=(10, 8))
     axes_motors = fig_motors.add_axes([0.1, 0.1, 0.8, 0.8])
-    motor_points = [[], [],[],[]]
+    motor_points = [[], [], [], []]
+
     # Instantiates figure for plotting alt results:
     fig_alt = plt.figure('Quadcopter alt', figsize=(10, 8))
     axes_alt = fig_alt.add_axes([0.1, 0.1, 0.8, 0.8])
@@ -138,7 +145,8 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
     refpoints_yaw = []
 
     # Instantiates figure for plotting control signals:
-    fig_control, (ax_c_alt, ax_c_yaw, ax_c_pitch, ax_c_roll) = plt.subplots(4, 1,  sharex=True, sharey=True, figsize=(10, 8))
+    fig_control, (ax_c_alt, ax_c_yaw, ax_c_pitch, ax_c_roll) = plt.subplots(4, 1, sharex=True, sharey=True,
+                                                                            figsize=(10, 8))
     ax_c_alt.set_title('Alt')
     ax_c_yaw.set_title('Yaw')
     ax_c_pitch.set_title('Pitch')
@@ -167,7 +175,7 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
 
     # Forever loop will be halted by VREP client or by exception
     first_iteration = True
-    k = 1 # Iterations Counter
+    k = 1  # Iterations Counter
 
     # Read Starting clouds from files:
     if readfiles[0]:
@@ -188,17 +196,27 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
         if print_stuff: print 'SPARC: Roll Controller Loaded', f_controller_roll_init.name
 
     # Instantiate References
-    if control[0]: alt_reference = Reference([2.0, 5.0, 10.0, 6.0, 7.0, 3.0], [10., 10., 10., 10., 10., 10.])
-    else: alt_reference = Reference([0.0], [10.])
+    if control[0]:
+        alt_reference = Reference([0.0, 0.0, 0.5, 0.5], [5., 10., 10., 10.], 1)
+    else:
+        alt_reference = Reference([0.0], [10.])
 
-    if control[1]: yaw_reference = Reference([1.0, 2.0, 1.0, 0.0, 0.5, 2.0], [10., 10., 10., 10., 10., 10.])
-    else: yaw_reference = Reference([0.0], [10.])
+    if control[1]:
+        yaw_reference = Reference([1.0, 2.0, 1.0, 0.0, 0.5, 2.0], [10., 10., 10., 10., 10., 10.])
+    else:
+        yaw_reference = Reference([0.0], [10.])
 
-    if control[2]: pitch_reference = Reference([5.0, 10.0, 0.0, 10.0, -10.0, -5.0, 0], [10., 10., 10., 10., 10., 10., 10.])
-    else: pitch_reference = Reference([0.0], [10.])
+    if control[2]:
+        pitch_reference = Reference([5.0, 10.0, 0.0, 10.0, -10.0, -5.0, 0], [10., 10., 10., 10., 10., 10., 10.])
+    else:
+        pitch_reference = Reference([0.0], [10.])
 
-    if control[3]: roll_reference = Reference([5.0, 10.0, 0.0, 10.0, -10.0, -5.0, 0], [10., 10., 10., 10., 10., 10., 10.])
-    else: roll_reference = Reference([0.0], [10.])
+    if control[3]:
+        roll_reference = Reference(
+            [0.0, math.pi / 8., math.pi / 5., math.pi / 8, 0.0, -math.pi / 8., -math.pi / 5., -math.pi / 8.],
+            np.array([10., 10., 10., 10., 10., 10., 10., 10.]))
+    else:
+        roll_reference = Reference([0.0], [10.])
 
     prev_yaw = 0.0
     prev_pitch = 0.0
@@ -211,11 +229,11 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
         # Get core data from client
         clientData = receive_floats(client, 7)
 
-        if print_stuff: print 'SPARC: k=',k
+        if print_stuff: print 'SPARC: k=', k
         if print_stuff: print 'SPARC: ClientData Received:'
 
         #if not clientData:
-         #   break
+        #   break
 
         # Quit on timeout
         if not clientData:
@@ -227,9 +245,9 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
         positionXMeters = clientData[1]
         positionYMeters = clientData[2]
         positionZMeters = clientData[3]
-        alphaRadians    = clientData[4]
-        betaRadians     = clientData[5]
-        gammaRadians    = clientData[6]
+        alphaRadians = clientData[4]
+        betaRadians = clientData[5]
+        gammaRadians = clientData[6]
 
         # Add some Guassian noise (example)
         # positionXMeters = random.gauss(positionXMeters, GPS_NOISE_METERS)
@@ -239,25 +257,31 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
         # See http://en.wikipedia.org/wiki/Flight_dynamics_(fixed-wing_aircraft) for positive/negative orientation
         rollAngleRadians, pitchAngleRadians = rotate((alphaRadians, betaRadians), gammaRadians)
         pitchAngleRadians = -pitchAngleRadians
-        yawAngleRadians   = -gammaRadians
+        yawAngleRadians = -gammaRadians
 
         dr = rollAngleRadians - prev_roll
         dp = pitchAngleRadians - prev_pitch
         dy = yawAngleRadians - prev_yaw
 
-        if dr>=0 : dr=math.fmod(dr+math.pi,2*math.pi)-math.pi
-        else: dr=math.fmod(dr-math.pi,2*math.pi)+math.pi
+        if dr >= 0:
+            dr = math.fmod(dr + math.pi, 2 * math.pi) - math.pi
+        else:
+            dr = math.fmod(dr - math.pi, 2 * math.pi) + math.pi
 
-        if dp>=0 : dp=math.fmod(dp+math.pi,2*math.pi)-math.pi
-        else: dp=math.fmod(dp-math.pi,2*math.pi)+math.pi
+        if dp >= 0:
+            dp = math.fmod(dp + math.pi, 2 * math.pi) - math.pi
+        else:
+            dp = math.fmod(dp - math.pi, 2 * math.pi) + math.pi
 
-        if dy>=0 : dy=math.fmod(dy+math.pi,2*math.pi)-math.pi
-        else: dy=math.fmod(dy-math.pi,2*math.pi)+math.pi
+        if dy >= 0:
+            dy = math.fmod(dy + math.pi, 2 * math.pi) - math.pi
+        else:
+            dy = math.fmod(dy - math.pi, 2 * math.pi) + math.pi
 
         prev_yaw = yawAngleRadians
         prev_pitch = pitchAngleRadians
         prev_roll = rollAngleRadians
-        curr_yaw  = curr_yaw + dy
+        curr_yaw = curr_yaw + dy
         curr_pitch = curr_pitch + dp
         curr_roll = curr_roll + dr
 
@@ -318,9 +342,6 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
         # if print_stuff: print result (curr_ref - curr_y)
         # if print_stuff: print "Step:", k, " | y:", curr_y, " | err:", np.subtract(curr_y,curr_ref).tolist(), " | u:", curr_u
 
-        prev_y = curr_y[:]
-        prev_ref = curr_ref[:]
-
         # if k % 100 == 0:
         #     if print_stuff: print 't[s]:', k*timestepSeconds
         #     if print_stuff: print '#clouds:', 'alt =', len(controller_alt.clouds),\
@@ -342,7 +363,7 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
                 curr_u[0] = controller_alt.update(curr_x[0], curr_y[0], curr_ref[0], prev_u[0]) if control[0] else 0.0
             else:
                 controller_alt = sparc.SparcController((UMIN_ALT, UMAX_ALT), (REFMIN_ALT, REFMAX_ALT),
-                                                    X_SIZE, curr_x[0], curr_ref[0], curr_y[0])
+                                                       X_SIZE, curr_x[0], curr_ref[0], curr_y[0])
                 curr_u[0] = controller_alt.clouds[0].get_consequent() if control[0] else 0.0
 
             # Yaw Controller
@@ -351,7 +372,7 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
                 curr_u[1] = controller_yaw.update(curr_x[1], curr_y[1], curr_ref[1], prev_u[1]) if control[1] else 0.0
             else:
                 controller_yaw = sparc.SparcController((UMIN_YAW, UMAX_YAW), (REFMIN_YAW, REFMAX_YAW),
-                                                   X_SIZE, curr_x[1], curr_ref[1], curr_y[1])
+                                                       X_SIZE, curr_x[1], curr_ref[1], curr_y[1])
                 curr_u[1] = controller_yaw.clouds[0].get_consequent() if control[1] else 0.0
 
             # Pitch Controller
@@ -360,8 +381,8 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
                 curr_u[2] = controller_pitch.update(curr_x[2], curr_y[2], curr_ref[2], prev_u[2]) if control[2] else 0.0
             else:
                 controller_pitch = sparc.SparcController((UMIN_PITCHROLL, UMAX_PITCHROLL),
-                                                      (REFMIN_PITCHROLL, REFMAX_PITCHROLL),
-                                                      X_SIZE, curr_x[2], curr_ref[2], curr_y[2])
+                                                         (REFMIN_PITCHROLL, REFMAX_PITCHROLL),
+                                                         X_SIZE, curr_x[2], curr_ref[2], curr_y[2])
                 curr_u[2] = controller_pitch.clouds[0].get_consequent() if control[2] else 0.0
 
             # Roll Controller
@@ -370,8 +391,8 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
                 curr_u[3] = controller_roll.update(curr_x[3], curr_y[3], curr_ref[3], prev_u[3]) if control[3] else 0.0
             else:
                 controller_roll = sparc.SparcController((UMIN_PITCHROLL, UMAX_PITCHROLL),
-                                                      (REFMIN_PITCHROLL, REFMAX_PITCHROLL),
-                                                      X_SIZE, curr_x[3], curr_ref[3], curr_y[3])
+                                                        (REFMIN_PITCHROLL, REFMAX_PITCHROLL),
+                                                        X_SIZE, curr_x[3], curr_ref[3], curr_y[3])
                 curr_u[3] = controller_roll.clouds[0].get_consequent() if control[3] else 0.0
 
             first_iteration = False
@@ -402,11 +423,22 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
 
             # curr_u = [alt_u, yaw_u, pitch_u, roll_u]
             curr_u = [0.0, 0.0, 0.0, 0.0]
+            damped_u = [0.0, 0.0, 0.0, 0.0]
 
             curr_u[0] = alt_u if control[0] else 0.0
             curr_u[1] = yaw_u if control[1] else 0.0
             curr_u[2] = pitch_u if control[2] else 0.0
             curr_u[3] = roll_u if control[3] else 0.0
+
+            # Add artificial damping
+            damped_u[0] = curr_u[0] - Kv_h * (curr_y[0] - prev_y[0])
+            damped_u[1] = curr_u[1] - Kv_y * (curr_y[1] - prev_y[1])
+            damped_u[2] = curr_u[2] - Kv_pr * (curr_y[2] - prev_y[2])
+            damped_u[3] = curr_u[3] - Kv_pr * (curr_y[3] - prev_y[3])
+
+            if print_stuff: print 'SPARC: Damping (undamped_u, damped_u) = ', curr_u[0], damped_u[0]
+
+            curr_u[:] = damped_u[:]
 
         # Prevent Over Excursion
         if curr_u[0] > UMAX_ALT:
@@ -419,27 +451,27 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
         if curr_u[1] < UMIN_YAW:
             curr_u[1] = UMIN_YAW
 
-        if curr_u[2] > UMAX_ALT:
-            curr_u[2] = UMAX_ALT
-        if curr_u[2] < UMIN_PITCHROLL:
-            curr_u[2] = UMIN_PITCHROLL
-
         if curr_u[2] > UMAX_PITCHROLL:
             curr_u[2] = UMAX_PITCHROLL
         if curr_u[2] < UMIN_PITCHROLL:
             curr_u[2] = UMIN_PITCHROLL
 
-        # Speed on Engines:
-        motors = [0.]*4
-        motors[0] = float(UPARKED + curr_u[0] + curr_u[1] - curr_u[2] + curr_u[3])
-        motors[1] = float(UPARKED + curr_u[0] - curr_u[1] + curr_u[2] + curr_u[3])
-        motors[2] = float(UPARKED + curr_u[0] + curr_u[1] + curr_u[2] - curr_u[3])
-        motors[3] = float(UPARKED + curr_u[0] - curr_u[1] - curr_u[2] - curr_u[3])
+        if curr_u[3] > UMAX_PITCHROLL:
+            curr_u[3] = UMAX_PITCHROLL
+        if curr_u[3] < UMIN_PITCHROLL:
+            curr_u[3] = UMIN_PITCHROLL
 
-        # motors[0] = float((UPARKED + curr_u[0])*(1 + curr_u[1] - curr_u[2] + curr_u[3]))
-        # motors[1] = float((UPARKED + curr_u[0])*(1 - curr_u[1] + curr_u[2] + curr_u[3]))
-        # motors[2] = float((UPARKED + curr_u[0])*(1 + curr_u[1] + curr_u[2] - curr_u[3]))
-        # motors[3] = float((UPARKED + curr_u[0])*(1 - curr_u[1] - curr_u[2] - curr_u[3]))
+        # Speed on Engines:
+        motors = [0.] * 4
+        #motors[0] = float(UPARKED + curr_u[0] + curr_u[1] - curr_u[2] + curr_u[3])
+        #motors[1] = float(UPARKED + curr_u[0] - curr_u[1] + curr_u[2] + curr_u[3])
+        #motors[2] = float(UPARKED + curr_u[0] + curr_u[1] + curr_u[2] - curr_u[3])
+        #motors[3] = float(UPARKED + curr_u[0] - curr_u[1] - curr_u[2] - curr_u[3])
+
+        motors[0] = float((UPARKED + curr_u[0]) * (1 + curr_u[1] - curr_u[2] + curr_u[3]))
+        motors[1] = float((UPARKED + curr_u[0]) * (1 - curr_u[1] + curr_u[2] + curr_u[3]))
+        motors[2] = float((UPARKED + curr_u[0]) * (1 + curr_u[1] + curr_u[2] - curr_u[3]))
+        motors[3] = float((UPARKED + curr_u[0]) * (1 - curr_u[1] - curr_u[2] - curr_u[3]))
 
         # Stores on list for plotting:
         motor_points[0].append(motors[0])
@@ -452,6 +484,8 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
         c_pitch_points.append(curr_u[2])
         c_roll_points.append(curr_u[3])
 
+        kpoints.append(time_elapsed)
+
         # Send speed to Engines
         send_floats(client, motors)
         if print_stuff: print 'SPARC: Control Signal Sent!'
@@ -463,15 +497,16 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
 
         # Update prev values
         prev_u = np.copy(curr_u)
-
+        prev_y = curr_y[:]
+        prev_ref = curr_ref[:]
 
 
         # Increment K
         k += 1
+        time_elapsed += timestepSeconds
 
     # Plotting and saving
     if k > 10:
-        kpoints = [x*float(timestepSeconds) for x in range(1, k)]
 
         # Plot Motors
         axes_motors.plot(kpoints, motor_points[0], 'r')
@@ -518,7 +553,7 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
             ax_cloud_alt.set_ylabel('DError')
             plt.colorbar(im_alt, ax=ax_cloud_alt)
             if recordfiles[0]:
-                f_alt = open(CONTROL_INIT_PATH+'controller_alt_init', 'w')
+                f_alt = open(CONTROL_INIT_PATH + 'controller_alt_init', 'w')
                 pickle.dump(controller_alt, f_alt)
                 f_alt.close()
                 if print_stuff: print 'SPARC: Controller Serialized', f_alt.name
@@ -534,7 +569,7 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
             ax_cloud_yaw.set_ylabel('DError')
             plt.colorbar(im_yaw, ax=ax_cloud_yaw)
             if recordfiles[1]:
-                f_yaw = open(CONTROL_INIT_PATH+'controller_yaw_init', 'w')
+                f_yaw = open(CONTROL_INIT_PATH + 'controller_yaw_init', 'w')
                 pickle.dump(controller_yaw, f_yaw)
                 f_yaw.close()
                 if print_stuff: print 'SPARC: Controller Serialized', f_yaw.name
@@ -550,7 +585,7 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
             ax_cloud_pitch.set_ylabel('DError')
             plt.colorbar(im_pitch, ax=ax_cloud_pitch)
             if recordfiles[2]:
-                f_pitch = open(CONTROL_INIT_PATH+'controller_pitch_init', 'w')
+                f_pitch = open(CONTROL_INIT_PATH + 'controller_pitch_init', 'w')
                 pickle.dump(controller_pitch, f_pitch)
                 f_pitch.close()
                 if print_stuff: print 'SPARC: Controller Serialized', f_pitch.name
@@ -566,7 +601,7 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
             ax_cloud_roll.set_ylabel('DError')
             plt.colorbar(im_roll, ax=ax_cloud_roll)
             if recordfiles[3]:
-                f_roll = open(CONTROL_INIT_PATH+'controller_roll_init', 'w')
+                f_roll = open(CONTROL_INIT_PATH + 'controller_roll_init', 'w')
                 pickle.dump(controller_roll, f_roll)
                 f_roll.close()
                 if print_stuff: print 'SPARC: Controller Serialized', f_roll.name
@@ -576,8 +611,7 @@ def test_sparc_model(print_stuff=False, control=[True]*4, readfiles=[True]*4, re
 
 # ------------------------ Global Methods  -------------------------#
 class Reference:
-
-    def __init__(self, list_amplitudes, list_times):
+    def __init__(self, list_amplitudes, list_times, ramp_step=0):
 
         if len(list_amplitudes) != len(list_times):
             raise ValueError('Amplitudes and Times must have the same sizes')
@@ -587,36 +621,47 @@ class Reference:
         self.amplitudes = np.copy(list_amplitudes)
         self.times = np.copy(list_times)
         self.curr_index = 0
+        self.ramp_step = ramp_step
 
     def get_next(self, steptime):
+        dy = (self.amplitudes[(self.curr_index + 1) % len(self.amplitudes)] - self.amplitudes[
+            self.curr_index]) / float(self.times[self.curr_index])
         self.time_passed += steptime
-        if self.time_passed > self.time_acumulated:
-            self.curr_index = (self.curr_index + 1)%len(self.amplitudes)
-            self.time_acumulated += self.times[self.curr_index]
-        return self.amplitudes[self.curr_index]
 
+        if self.ramp_step == 0:
+            if self.time_passed > self.time_acumulated:
+                self.curr_index = (self.curr_index + 1) % len(self.amplitudes)
+                self.time_acumulated += self.times[self.curr_index]
+            return self.amplitudes[self.curr_index]
+        else:
+            if self.time_passed > self.times[self.curr_index]:
+                self.curr_index = (self.curr_index + 1) % len(self.amplitudes)
+                self.time_passed = 0.0
+            return self.amplitudes[self.curr_index] + dy*self.time_passed
 
 def reference(k, t):
     # Exponencial
     #refk = A*(1-math.e**(-0.01*k))
 
-    refk = 5*math.cos((2*math.pi/t)*k*t) + 5*math.sin((1.4*2*math.pi/t)*k*t) + 10
+    refk = 5 * math.cos((2 * math.pi / t) * k * t) + 5 * math.sin((1.4 * 2 * math.pi / t) * k * t) + 10
 
     return refk
+
 
 def generate_input(y, yprev, ref, refprev, t, gain=1):
     # Calculate current error
     if math.isnan(y):
         curr_e = 0
     else:
-        curr_e = ref-y
+        curr_e = ref - y
 
     # Calculate previous error
-    prev_e = refprev-yprev
+    prev_e = refprev - yprev
 
     # Generate Inputs
-    x = np.array([curr_e, (curr_e-prev_e)])
+    x = np.array([curr_e, (curr_e - prev_e)])
     return x
 
 # ------------------------ Run Main Program ------------------------#
-test_sparc_model(print_stuff = True, control=[False, False, False, True], readfiles = [False, False, False, True], recordfiles = [False, False, False, False])
+test_sparc_model(print_stuff=True, control=[True, False, False, False], readfiles=[False, False, False, False],
+                 recordfiles=[True, False, False, False])

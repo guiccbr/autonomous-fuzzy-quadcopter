@@ -154,14 +154,14 @@ class SparcController:
 
         # Fourth, Check if the point is far enough from every data cloud.
         curr_sample_is_distant_enough = True
-        # for i in range(num_clouds):
-        #     if focal_points_distances[i] <= np.max(self.clouds[i].r)/2.:
-        #         curr_sample_is_distant_enough = False
+        for i in range(num_clouds):
+            if focal_points_distances[i] <= np.max(self.clouds[i].r)/2.:
+                curr_sample_is_distant_enough = False
 
         # Inverse Alternative to FIFTH (Check if sample satisfies one sigma condition)
         # If it's satisfied, a new cloud is not created.
-        if np.max(relative_ld) > 1./math.e:
-            curr_sample_is_distant_enough = False
+        #if np.max(relative_ld) > 1./math.e:
+        #    curr_sample_is_distant_enough = False
 
         # Fifth, If a new cloud is needed, creates a new cloud
         # Otherwise, adds the current point to the best matching cloud and checks
