@@ -103,10 +103,14 @@ class SparcController:
 
         num_clouds = len(self.clouds)
 
+        #print 'num_clouds, curr_x:', num_clouds, curr_x
+
         # (1) Updates the consequents of all clouds
         for i in range(num_clouds):
             self.clouds[i].update_consequent(self.prev_md[i], self.prev_ref, curr_y,
                                              prev_u, self.c, self.umin, self.umax)
+
+        #print 'First Cloud (focal point, consequent):', self.clouds[0].zf
 
         # (2) Find the the Data Cloud associated to the new sample
 
@@ -421,10 +425,11 @@ class DataCloud:
         """
 
         # Calculate relative error:
-        e = prev_ref - curr_y
+        e = (prev_ref - curr_y)
 
         # Calculate consequent differential
         dq = c * prev_md * e
+
 
         # Checks if control signal maximum or minimum has been reached
         # to prevent penalization on these cases
@@ -432,6 +437,8 @@ class DataCloud:
             dq = 0.0
         if (prev_u >= umax) and (dq > 0):
             dq = 0.0
+
+        #print('update_consequent (e, md, dq_b, dq_a):', e, prev_md, dq)
 
         # Get Consequent
         q = self.get_consequent()

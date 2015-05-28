@@ -48,25 +48,24 @@ def receive_string(client):
     return client.recv(int(receive_floats(client, 1)[0]))
 
 # ------------------------ Constants  -------------------------------#
+RAD2DEG = 180.0/math.pi
 
-DEG2RAD = math.pi / 180.0
-RAD2DEG = 180.0 / math.pi
 
 # - Motor:
 MOTOR_KV = 980
 MOTOR_MAX_VOLTAGE = 11.1
 
 # - Control Signal:
-UPARKED = 24.48
+UPARKED = 1225.0
 
-UMIN_ALT = -14.0  # Range Min
-UMAX_ALT = +14.0  # Range Max
+UMIN_ALT = -500.0  # Range Min
+UMAX_ALT = +500.0  # Range Max
 
-UMIN_PITCHROLL = -0.4
-UMAX_PITCHROLL = +0.4
+UMIN_PITCHROLL = -100.0
+UMAX_PITCHROLL = +100.0
 
-UMIN_YAW = -0.1
-UMAX_YAW = +0.1
+UMIN_YAW = -100.0
+UMAX_YAW = +100.0
 
 # Note that:
 # UMAX_ALT + UMAX_YAW + UMAX_PITCHROLL <= 2000 (MAX ENGINE CONTROL SIGNAL)
@@ -76,14 +75,14 @@ UMAX_YAW = +0.1
 X_SIZE = 2  # Dimension of the input (measured by sensors of the plant)
 
 # - Plant output reference (Measured by sensors on the plant)
-REFMAX_ALT = 2.0  # Range Max
+REFMAX_ALT = 3.0  # Range Max
 REFMIN_ALT = 0.0  # Range Min
 
-REFMIN_PITCHROLL = 0.0 * DEG2RAD
-REFMAX_PITCHROLL = 30.0 * DEG2RAD
+REFMIN_PITCHROLL = -360.0
+REFMAX_PITCHROLL = 360.0
 
-REFMIN_YAW = -150.0 * DEG2RAD
-REFMAX_YAW = +150.0 * DEG2RAD
+REFMIN_YAW = -1000.0
+REFMAX_YAW = +1000.0
 
 # - Timeout for receiving data from client
 TIMEOUT_SEC = 1.0
@@ -97,10 +96,13 @@ NOISE = 0.0
 CONTROL_INIT_PATH = '/Users/gcc/Dropbox/Projects/gitRepos/github-tfc-drone/python/controller/vrep/dumped_controllers/'
 
 # Artifical Damping
-Kv_pr = 10. / (REFMAX_PITCHROLL - REFMIN_PITCHROLL)
-Kv_y = 10. / (REFMAX_YAW - REFMIN_YAW)
-Kv_h = 200. / (REFMAX_ALT - REFMIN_ALT)
-
+#Kv_pr = 0.3 / (REFMAX_PITCHROLL - REFMIN_PITCHROLL)
+# Kv_pr = 0.0 / (REFMAX_PITCHROLL - REFMIN_PITCHROLL)
+# Kv_y = 0.7 / (REFMAX_YAW - REFMIN_YAW)
+# Kv_h = 10.0 / (REFMAX_ALT - REFMIN_ALT
+Kv_pr = 0.0 / (REFMAX_PITCHROLL - REFMIN_PITCHROLL)
+Kv_y = 0.0 / (REFMAX_YAW - REFMIN_YAW)
+Kv_h = 0.0 / (REFMAX_ALT - REFMIN_ALT)
 
 
 # ------------------------ Main Program  ---------------------------#
@@ -197,24 +199,27 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
 
     # Instantiate References
     if control[0]:
-        alt_reference = Reference([0.0, 0.0, 0.5, 0.5], [5., 10., 10., 10.], 1)
+        alt_reference = Reference([0.1, 0.1, 2., 2.], [5., 5., 24., 5.], 1)
     else:
         alt_reference = Reference([0.0], [10.])
 
     if control[1]:
-        yaw_reference = Reference([1.0, 2.0, 1.0, 0.0, 0.5, 2.0], [10., 10., 10., 10., 10., 10.])
+        yaw_reference = Reference([0.0, 0.0, 180./3., 180./3, 0.0, 0.0, -180./3., -180./3, 0.0],
+                                   [5.0, 2.0, 5.0, 2.0, 2.0, 2.0, 5.0, 2.0, 2.0], 1)
+        #yaw_reference = Reference([0.0], [10.])
     else:
         yaw_reference = Reference([0.0], [10.])
 
     if control[2]:
-        pitch_reference = Reference([5.0, 10.0, 0.0, 10.0, -10.0, -5.0, 0], [10., 10., 10., 10., 10., 10., 10.])
+        pitch_reference = Reference([0.0], [10.])
     else:
         pitch_reference = Reference([0.0], [10.])
 
     if control[3]:
         roll_reference = Reference(
-            [0.0, math.pi / 8., math.pi / 5., math.pi / 8, 0.0, -math.pi / 8., -math.pi / 5., -math.pi / 8.],
-            np.array([10., 10., 10., 10., 10., 10., 10., 10.]))
+            [0.0, 0.0, 0.0, 180. / 10., 180. / 10, -180. / 10.,  -180. / 10., 0.0, 0.0],
+            np.array([10., 3., 2., 5., 4., 5., 2., 3., 5.]), 1)
+
     else:
         roll_reference = Reference([0.0], [10.])
 
@@ -239,15 +244,14 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         if not clientData:
             break
 
-
         # Unpack IMU data
         timestepSeconds = clientData[0]
         positionXMeters = clientData[1]
         positionYMeters = clientData[2]
         positionZMeters = clientData[3]
-        alphaRadians = clientData[4]
-        betaRadians = clientData[5]
-        gammaRadians = clientData[6]
+        alphaDegrees = clientData[4]*RAD2DEG
+        betaDegrees = clientData[5]*RAD2DEG
+        gammaDegrees = clientData[6]*RAD2DEG
 
         # Add some Guassian noise (example)
         # positionXMeters = random.gauss(positionXMeters, GPS_NOISE_METERS)
@@ -255,32 +259,32 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
 
         # Convert Euler angles to pitch, roll, yaw
         # See http://en.wikipedia.org/wiki/Flight_dynamics_(fixed-wing_aircraft) for positive/negative orientation
-        rollAngleRadians, pitchAngleRadians = rotate((alphaRadians, betaRadians), gammaRadians)
-        pitchAngleRadians = -pitchAngleRadians
-        yawAngleRadians = -gammaRadians
+        rollAngleDegrees, pitchAngleDegrees = rotate((alphaDegrees, betaDegrees), gammaDegrees)
+        pitchAngleDegrees = -pitchAngleDegrees
+        yawAngleDegrees = -gammaDegrees
 
-        dr = rollAngleRadians - prev_roll
-        dp = pitchAngleRadians - prev_pitch
-        dy = yawAngleRadians - prev_yaw
+        dr = rollAngleDegrees - prev_roll
+        dp = pitchAngleDegrees - prev_pitch
+        dy = yawAngleDegrees - prev_yaw
 
         if dr >= 0:
-            dr = math.fmod(dr + math.pi, 2 * math.pi) - math.pi
+            dr = math.fmod(dr + 180., 2 * 180.) - 180.
         else:
-            dr = math.fmod(dr - math.pi, 2 * math.pi) + math.pi
+            dr = math.fmod(dr - 180., 2 * 180.) + 180.
 
         if dp >= 0:
-            dp = math.fmod(dp + math.pi, 2 * math.pi) - math.pi
+            dp = math.fmod(dp + 180., 2 * 180.) - 180.
         else:
-            dp = math.fmod(dp - math.pi, 2 * math.pi) + math.pi
+            dp = math.fmod(dp - 180., 2 * 180.) + 180.
 
         if dy >= 0:
-            dy = math.fmod(dy + math.pi, 2 * math.pi) - math.pi
+            dy = math.fmod(dy + 180., 2 * 180.) - 180.
         else:
-            dy = math.fmod(dy - math.pi, 2 * math.pi) + math.pi
+            dy = math.fmod(dy - 180., 2 * 180.) + 180.
 
-        prev_yaw = yawAngleRadians
-        prev_pitch = pitchAngleRadians
-        prev_roll = rollAngleRadians
+        prev_yaw = yawAngleDegrees
+        prev_pitch = pitchAngleDegrees
+        prev_roll = rollAngleDegrees
         curr_yaw = curr_yaw + dy
         curr_pitch = curr_pitch + dp
         curr_roll = curr_roll + dr
@@ -431,12 +435,13 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
             curr_u[3] = roll_u if control[3] else 0.0
 
             # Add artificial damping
-            damped_u[0] = curr_u[0] - Kv_h * (curr_y[0] - prev_y[0])
-            damped_u[1] = curr_u[1] - Kv_y * (curr_y[1] - prev_y[1])
-            damped_u[2] = curr_u[2] - Kv_pr * (curr_y[2] - prev_y[2])
-            damped_u[3] = curr_u[3] - Kv_pr * (curr_y[3] - prev_y[3])
+            # print 'timestep: ', timestepSeconds
+            damped_u[0] = curr_u[0] - Kv_h * (curr_y[0] - prev_y[0])/timestepSeconds
+            damped_u[1] = curr_u[1] - Kv_y * (curr_y[1] - prev_y[1])/timestepSeconds
+            damped_u[2] = curr_u[2] - Kv_pr * (curr_y[2] - prev_y[2])/timestepSeconds
+            damped_u[3] = curr_u[3] - Kv_pr * (curr_y[3] - prev_y[3])/timestepSeconds
 
-            if print_stuff: print 'SPARC: Damping (undamped_u, damped_u) = ', curr_u[0], damped_u[0]
+            # if print_stuff: print 'SPARC: Damping (undamped_u, damped_u) = ', curr_u[3], damped_u[3]
 
             curr_u[:] = damped_u[:]
 
@@ -468,10 +473,10 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         #motors[2] = float(UPARKED + curr_u[0] + curr_u[1] + curr_u[2] - curr_u[3])
         #motors[3] = float(UPARKED + curr_u[0] - curr_u[1] - curr_u[2] - curr_u[3])
 
-        motors[0] = float((UPARKED + curr_u[0]) * (1 + curr_u[1] - curr_u[2] + curr_u[3]))
-        motors[1] = float((UPARKED + curr_u[0]) * (1 - curr_u[1] + curr_u[2] + curr_u[3]))
-        motors[2] = float((UPARKED + curr_u[0]) * (1 + curr_u[1] + curr_u[2] - curr_u[3]))
-        motors[3] = float((UPARKED + curr_u[0]) * (1 - curr_u[1] - curr_u[2] - curr_u[3]))
+        motors[0] = float((UPARKED + curr_u[0]) * (1 - curr_u[1]/100. + curr_u[2] - curr_u[3]/100.))
+        motors[1] = float((UPARKED + curr_u[0]) * (1 + curr_u[1]/100. + curr_u[2] + curr_u[3]/100.))
+        motors[2] = float((UPARKED + curr_u[0]) * (1 - curr_u[1]/100. - curr_u[2] + curr_u[3]/100.))
+        motors[3] = float((UPARKED + curr_u[0]) * (1 + curr_u[1]/100. - curr_u[2] - curr_u[3]/100.))
 
         # Stores on list for plotting:
         motor_points[0].append(motors[0])
@@ -496,7 +501,7 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         #     if print_stuff: print 'SPARC: #CloudsYaw= ', len(controller_yaw.clouds)
 
         # Update prev values
-        prev_u = np.copy(curr_u)
+        prev_u = curr_u[:]
         prev_y = curr_y[:]
         prev_ref = curr_ref[:]
 
@@ -643,7 +648,7 @@ def reference(k, t):
     # Exponencial
     #refk = A*(1-math.e**(-0.01*k))
 
-    refk = 5 * math.cos((2 * math.pi / t) * k * t) + 5 * math.sin((1.4 * 2 * math.pi / t) * k * t) + 10
+    refk = 5 * math.cos((2 * 180. / t) * k * t) + 5 * math.sin((1.4 * 2 * 180. / t) * k * t) + 10
 
     return refk
 
@@ -663,5 +668,5 @@ def generate_input(y, yprev, ref, refprev, t, gain=1):
     return x
 
 # ------------------------ Run Main Program ------------------------#
-test_sparc_model(print_stuff=True, control=[True, False, False, False], readfiles=[False, False, False, False],
-                 recordfiles=[True, False, False, False])
+test_sparc_model(print_stuff=False, control=[False, True, False, False], readfiles=[False, False, False, False],
+                 recordfiles=[False, False, False, False])
