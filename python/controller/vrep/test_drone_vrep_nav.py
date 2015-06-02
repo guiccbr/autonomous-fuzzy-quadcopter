@@ -16,7 +16,8 @@ import sparc
 from socket_server import serve_socket
 from geometry import rotate
 
-
+# Nav
+import navigation_controller
 
 # ------------------------ Helpers ----------------------------------#
 def send_floats(client, data):
@@ -58,8 +59,8 @@ MOTOR_MAX_VOLTAGE = 11.1
 # - Control Signal:
 UPARKED = 1225.0
 
-UMIN_ALT = -500.0  # Range Min
-UMAX_ALT = +500.0  # Range Max
+UMIN_ALT = -1225.0  # Range Min
+UMAX_ALT = +1225.0  # Range Max
 
 UMIN_PITCHROLL = -100.0
 UMAX_PITCHROLL = +100.0
@@ -118,37 +119,54 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
     time_elapsed = 0.0
 
     # Instantiates figure for plotting motor angular velocities:
-    fig_motors = plt.figure('Motors', figsize=(10, 8))
+    fig_motors = plt.figure('Motors', figsize=(14,10))
     axes_motors = fig_motors.add_axes([0.1, 0.1, 0.8, 0.8])
     motor_points = [[], [], [], []]
 
-    # Instantiates figure for plotting alt results:
-    fig_alt = plt.figure('Quadcopter alt', figsize=(10, 8))
-    axes_alt = fig_alt.add_axes([0.1, 0.1, 0.8, 0.8])
+    # Instantiates figure for plotting stabilization results:
+    fig_control, (axes_alt, axes_pitch, axes_roll, axes_yaw) = plt.subplots(4, 1, sharex=True, sharey=False,
+                                                                            figsize=(14,10))
+
+    fig_control.canvas.set_window_title('Quadcopter Stability - Commanded(RED), Performed(BLUE)')
+    axes_alt.set_title('Alt')
+    axes_pitch.set_title('Pitch')
+    axes_roll.set_title('Roll')
+    axes_yaw.set_title('Yaw')
+
     ypoints_alt = []
     refpoints_alt = []
 
-    # Instantiates figure for plotting pitch results:
-    fig_pitch = plt.figure('Quadcopter pitch', figsize=(10, 8))
-    axes_pitch = fig_pitch.add_axes([0.1, 0.1, 0.8, 0.8])
     ypoints_pitch = []
     refpoints_pitch = []
 
-    # Instantiates figure for plotting roll results:
-    fig_roll = plt.figure('Quadcopter roll', figsize=(10, 8))
-    axes_roll = fig_roll.add_axes([0.1, 0.1, 0.8, 0.8])
     ypoints_roll = []
     refpoints_roll = []
 
-    # Instantiates figure for plotting yaw results:
-    fig_yaw = plt.figure('Quadcopter yaw', figsize=(10, 8))
-    axes_yaw = fig_yaw.add_axes([0.1, 0.1, 0.8, 0.8])
     ypoints_yaw = []
     refpoints_yaw = []
 
+    # Instantiates figure for plotting navigation results:
+    fig_nav = plt.figure('Quadcopter Navigation', figsize=(14,10))
+    axes_x = fig_nav.add_subplot(221)
+    axes_x.set_title('X')
+    ypoints_x = []
+    refpoints_x = []
+
+    axes_y = fig_nav.add_subplot(222)
+    axes_y.set_title('Y')
+    ypoints_y = []
+    refpoints_y = []
+
+    axes_xy = fig_nav.add_subplot(212)
+    axes_xy.set_title('XY')
+
+
     # Instantiates figure for plotting control signals:
-    fig_control, (ax_c_alt, ax_c_yaw, ax_c_pitch, ax_c_roll) = plt.subplots(4, 1, sharex=True, sharey=True,
-                                                                            figsize=(10, 8))
+    fig_control, (ax_c_alt, ax_c_yaw, ax_c_pitch, ax_c_roll) = plt.subplots(4, 1, sharex=True, sharey=False,
+                                                                            figsize=(14,10))
+
+    fig_control.canvas.set_window_title('Control Effort')
+
     ax_c_alt.set_title('Alt')
     ax_c_yaw.set_title('Yaw')
     ax_c_pitch.set_title('Pitch')
@@ -159,18 +177,24 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
     c_yaw_points = []
 
     # Instantiates figure for plotting clouds:
-    fig_clouds = plt.figure('Data Clouds', figsize=(10, 8))
-    ax_cloud_alt = fig_clouds.add_subplot(221)
+    fig_clouds = plt.figure('Data Clouds', figsize=(14,10))
+    ax_cloud_alt = fig_clouds.add_subplot(231)
     ax_cloud_alt.set_title('Alt')
 
-    ax_cloud_yaw = fig_clouds.add_subplot(222)
+    ax_cloud_yaw = fig_clouds.add_subplot(232)
     ax_cloud_yaw.set_title('Yaw')
 
-    ax_cloud_pitch = fig_clouds.add_subplot(223)
+    ax_cloud_pitch = fig_clouds.add_subplot(233)
     ax_cloud_pitch.set_title('Pitch')
 
-    ax_cloud_roll = fig_clouds.add_subplot(224)
+    ax_cloud_roll = fig_clouds.add_subplot(234)
     ax_cloud_roll.set_title('Roll')
+
+    ax_cloud_nav_x = fig_clouds.add_subplot(235)
+    ax_cloud_nav_x.set_title('Nav X')
+
+    ax_cloud_nav_y = fig_clouds.add_subplot(236)
+    ax_cloud_nav_y.set_title('Nav Y')
 
     # Reference
     new_reference = True
@@ -196,34 +220,42 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         f_controller_roll_init = open(CONTROL_INIT_PATH + 'controller_roll_init')
         controller_roll_init = pickle.load(f_controller_roll_init)
         if print_stuff: print 'SPARC: Roll Controller Loaded', f_controller_roll_init.name
+    if readfiles[4]:
+        f_controller_nav_y_init = open(CONTROL_INIT_PATH + 'controller_navy_init')
+        controller_nav_y_init = pickle.load(f_controller_nav_y_init)
+        if print_stuff: print 'SPARC: Roll Controller Loaded', f_controller_nav_y_init.name
+    else:
+        controller_nav_y_init = None
+    if readfiles[5]:
+        f_controller_nav_x_init = open(CONTROL_INIT_PATH + 'controller_navx_init')
+        controller_nav_x_init = pickle.load(f_controller_nav_x_init)
+        if print_stuff: print 'SPARC: Roll Controller Loaded', f_controller_nav_x_init.name
+    else:
+        controller_nav_x_init = None
 
-    # Instantiate References
+    # Instantiate Navigation Controllers and References
+    #x_reference = Reference([0.0, 0.0, 5., 5.], [10., 10., 10., 10.], 1)
+    #y_reference = Reference([0.0, 5., 5., 0.], [10., 10., 10., 10.], 1)
+
+    # x_reference = Reference([0.0, 5., 5., 0.], [5., 10., 5., 10.], 1)
+    # y_reference = Reference([0.0, 5., 5., 0.], [5., 10., 5., 10.], 1)
+    x_reference = Reference([0.0], [10.])
+    y_reference = Reference([0.0], [10.])
+
+    nav = navigation_controller.navigation_controller(np.array([0., 0.]), np.array([0., 0.]), np.array([0., 0.]),
+                                                      np.array([0., 0.]), controller_nav_y_init, controller_nav_x_init)
+
     if control[0]:
-        alt_reference = Reference([1.0, 1.0, 4., 4.], [5., 5., 24., 5.], 1)
+        #alt_reference = Reference([1.0, 1.0, 4., 4.], [5., 5., 24., 5.], 1)
+        alt_reference = Reference([3., 5.0, 4.0, 7.0, 2.0], [10., 5., .5, 5., 1.], mode=2)
     else:
         alt_reference = Reference([0.0], [10.])
 
     if control[1]:
-        yaw_reference = Reference([0.0, 0.0, 45., 45.], [5., 5., 24., 5.], 1)
-        #yaw_reference = Reference([0.0], [10.])
+        #yaw_reference = Reference([0.0, 0.0, 45., 45.], [5., 5., 24., 5.], 1)
+        yaw_reference = Reference([0.0], [10.])
     else:
         yaw_reference = Reference([0.0], [10.])
-
-    if control[2]:
-        pitch_reference = Reference(
-           [0.0, 0.0, 0.0, 180. / 20., 180. / 20, -180. / 20.,  -180. / 20., 0.0, 0.0],
-           [10., 3., 2., 5., 4., 5., 2., 3., 5.], 1)
-        #pitch_reference = Reference([0.0], [10.])
-    else:
-        pitch_reference = Reference([0.0], [10.])
-
-    if control[3]:
-         #roll_reference = Reference(
-         #   [0.0, 0.0, 0.0, 180. / 20., 180. / 20, -180. / 20.,  -180. / 20., 0.0, 0.0],
-         #   [10., 3., 2., 5., 4., 5., 2., 3., 5.], 1)
-        roll_reference = Reference([0.0], [10.])
-    else:
-        roll_reference = Reference([0.0], [10.])
 
     prev_yaw = 0.0
     prev_pitch = 0.0
@@ -269,9 +301,6 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         pitchAngleDegrees = pitchAngleRadians*RAD2DEG
         rollAngleDegrees = rollAngleRadians*RAD2DEG
 
-        print '(pitch, roll, yaw)', pitchAngleDegrees, rollAngleDegrees, yawAngleDegrees
-
-
         dr = rollAngleDegrees - prev_roll
         dp = pitchAngleDegrees - prev_pitch
         dy = yawAngleDegrees - prev_yaw
@@ -298,18 +327,25 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         curr_pitch = curr_pitch + dp
         curr_roll = curr_roll + dr
 
-        print 'Cont(pitch, roll, yaw)', curr_pitch, curr_roll, curr_yaw
-
-
         # Get altitude directly from position Z
         altitudeMeters = positionZMeters
 
         # y : [alt, yaw, pitch, roll]
         curr_y = [altitudeMeters, curr_yaw, curr_pitch, curr_roll]
 
+        # Get current references for navigation:
+        x_curr_ref = x_reference.get_next(timestepSeconds)
+        y_curr_ref = y_reference.get_next(timestepSeconds)
+
         # Set References.
-        curr_ref = [alt_reference.get_next(timestepSeconds), yaw_reference.get_next(timestepSeconds),
-                    pitch_reference.get_next(timestepSeconds), roll_reference.get_next(timestepSeconds)]
+        curr_ref = [0., 0., 0., 0.]
+        curr_ref[0] = alt_reference.get_next(timestepSeconds)
+        curr_ref[1] = yaw_reference.get_next(timestepSeconds)
+        curr_ref[2], curr_ref[3] = nav.update([positionXMeters, positionYMeters], [x_curr_ref, y_curr_ref])
+
+        # Convert pitch/roll input from radians to degrees
+        curr_ref[2] = -curr_ref[2]*RAD2DEG
+        curr_ref[3] = -curr_ref[3]*RAD2DEG
 
         if print_stuff: print 'SPARC: curr_y =', curr_y
         if print_stuff: print 'SPARC: curr_ref =', curr_ref
@@ -354,6 +390,15 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         # Stores on list for plotting:
         ypoints_yaw.append(curr_y[1])
         refpoints_yaw.append(curr_ref[1])
+
+        # Stores on list for plotting:
+        ypoints_x.append(positionXMeters)
+        refpoints_x.append(x_curr_ref)
+
+        # Stores on list for plotting:
+        ypoints_y.append(positionYMeters)
+        refpoints_y.append(y_curr_ref)
+
 
         # if print_stuff: print result (curr_ref - curr_y)
         # if print_stuff: print "Step:", k, " | y:", curr_y, " | err:", np.subtract(curr_y,curr_ref).tolist(), " | u:", curr_u
@@ -485,6 +530,10 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         #motors[2] = float(UPARKED + curr_u[0] + curr_u[1] + curr_u[2] - curr_u[3])
         #motors[3] = float(UPARKED + curr_u[0] - curr_u[1] - curr_u[2] - curr_u[3])
 
+        # In case the quadcopter is upside down, use another dynamic (shut down alt. controller)
+        if curr_y[2] >= 90 or curr_y[3] >= 90:
+            curr_u[0] = 0.0
+
         motors[0] = float((UPARKED + curr_u[0]) * (1 - curr_u[1]/100. + curr_u[2]/100. - curr_u[3]/100.))
         motors[1] = float((UPARKED + curr_u[0]) * (1 + curr_u[1]/100. + curr_u[2]/100. + curr_u[3]/100.))
         motors[2] = float((UPARKED + curr_u[0]) * (1 - curr_u[1]/100. - curr_u[2]/100. + curr_u[3]/100.))
@@ -496,10 +545,10 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         motor_points[2].append(motors[2])
         motor_points[3].append(motors[3])
 
-        c_alt_points.append(curr_u[0])
-        c_yaw_points.append(curr_u[1])
-        c_pitch_points.append(curr_u[2])
-        c_roll_points.append(curr_u[3])
+        c_alt_points.append(UPARKED + curr_u[0])
+        c_yaw_points.append((UPARKED + curr_u[0])*curr_u[1]/100)
+        c_pitch_points.append((UPARKED + curr_u[0])*curr_u[2]/100)
+        c_roll_points.append((UPARKED + curr_u[0])*curr_u[3]/100)
 
         kpoints.append(time_elapsed)
 
@@ -531,7 +580,6 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         axes_motors.plot(kpoints, motor_points[2], 'b')
         axes_motors.plot(kpoints, motor_points[3], 'g')
 
-
         # Plot Altitude (Reference and Result)
         axes_alt.plot(kpoints, refpoints_alt, 'r')
         axes_alt.plot(kpoints, ypoints_alt, 'b')
@@ -548,6 +596,29 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         axes_yaw.plot(kpoints, refpoints_yaw, 'r')
         axes_yaw.plot(kpoints, ypoints_yaw, 'b')
 
+        # Plot Y (Reference and Result)
+        axes_y.plot(kpoints, refpoints_y, 'r')
+        axes_y.plot(kpoints, ypoints_y, 'b')
+
+        # Plot X (Reference and Result)
+        axes_x.plot(kpoints, refpoints_x, 'r')
+        axes_x.plot(kpoints, ypoints_x, 'b')
+
+        # Plot XY (Reference and Result)
+        axes_xy.plot(refpoints_x, refpoints_y, 'r')
+        axes_xy.plot(ypoints_x, ypoints_y, 'b')
+
+        # Reconfigure limits of XY to keep proportion.
+        xlim_range = max(axes_xy.get_xlim()) - min(axes_xy.get_xlim())
+        ylim_range = max(axes_xy.get_ylim()) - min(axes_xy.get_ylim())
+
+        if xlim_range > ylim_range:
+            axes_xy.set_xlim(axes_xy.get_xlim())
+            axes_xy.set_ylim(axes_xy.get_xlim())
+        else:
+            axes_xy.set_xlim(axes_xy.get_ylim())
+            axes_xy.set_ylim(axes_xy.get_ylim())
+
         # Plot Control Signals
         ax_c_alt.plot(kpoints, c_alt_points, 'r')
         ax_c_pitch.plot(kpoints, c_pitch_points, 'y')
@@ -555,16 +626,14 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
         ax_c_yaw.plot(kpoints, c_yaw_points, 'g')
 
         # Plot Clouds
-        e = []
-        de = []
-        u = []
         if control[0]:
+            e, de, u, r = [], [], [], []
             for c in controller_alt.clouds:
                 e.append(c.zf[0])
                 de.append(c.zf[1])
                 u.append(c.zf[2])
                 r = c.r
-                ax_cloud_alt.add_artist(Ellipse((e[-1], de[-1]), r[0], r[1], facecolor='none', linestyle='dashed'))
+                ax_cloud_alt.add_patch(Ellipse((e[-1], de[-1]), r[0], r[1], facecolor='none', linestyle='dashed'))
             im_alt = ax_cloud_alt.scatter(e, de, c=u, cmap=plt.cm.jet)
             ax_cloud_alt.set_xlabel('Error')
             ax_cloud_alt.set_ylabel('DError')
@@ -575,12 +644,13 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
                 f_alt.close()
                 if print_stuff: print 'SPARC: Controller Serialized', f_alt.name
         if control[1]:
+            e, de, u, r = [], [], [], []
             for c in controller_yaw.clouds:
                 e.append(c.zf[0])
                 de.append(c.zf[1])
                 u.append(c.zf[2])
                 r = c.r
-                ax_cloud_yaw.add_artist(Ellipse((e[-1], de[-1]), r[0], r[1], facecolor='none', linestyle='dashed'))
+                ax_cloud_yaw.add_patch(Ellipse((e[-1], de[-1]), r[0], r[1], facecolor='none', linestyle='dashed'))
             im_yaw = ax_cloud_yaw.scatter(e, de, c=u, cmap=plt.cm.jet)
             ax_cloud_yaw.set_xlabel('Error')
             ax_cloud_yaw.set_ylabel('DError')
@@ -591,12 +661,13 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
                 f_yaw.close()
                 if print_stuff: print 'SPARC: Controller Serialized', f_yaw.name
         if control[2]:
+            e, de, u, r = [], [], [], []
             for c in controller_pitch.clouds:
                 e.append(c.zf[0])
                 de.append(c.zf[1])
                 u.append(c.zf[2])
                 r = c.r
-                ax_cloud_pitch.add_artist(Ellipse((e[-1], de[-1]), r[0], r[1], facecolor='none', linestyle='dashed'))
+                ax_cloud_pitch.add_patch(Ellipse((e[-1], de[-1]), r[0], r[1], facecolor='none', linestyle='dashed'))
             im_pitch = ax_cloud_pitch.scatter(e, de, c=u, cmap=plt.cm.jet)
             ax_cloud_pitch.set_xlabel('Error')
             ax_cloud_pitch.set_ylabel('DError')
@@ -607,12 +678,13 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
                 f_pitch.close()
                 if print_stuff: print 'SPARC: Controller Serialized', f_pitch.name
         if control[3]:
+            e, de, u, r = [], [], [], []
             for c in controller_roll.clouds:
                 e.append(c.zf[0])
                 de.append(c.zf[1])
                 u.append(c.zf[2])
                 r = c.r
-                ax_cloud_roll.add_artist(Ellipse((e[-1], de[-1]), r[0], r[1], facecolor='none', linestyle='dashed'))
+                ax_cloud_roll.add_patch(Ellipse((e[-1], de[-1]), r[0], r[1], facecolor='none', linestyle='dashed'))
             im_roll = ax_cloud_roll.scatter(e, de, c=u, cmap=plt.cm.jet)
             ax_cloud_roll.set_xlabel('Error')
             ax_cloud_roll.set_ylabel('DError')
@@ -623,12 +695,49 @@ def test_sparc_model(print_stuff=False, control=[True] * 4, readfiles=[True] * 4
                 f_roll.close()
                 if print_stuff: print 'SPARC: Controller Serialized', f_roll.name
 
+        # Navigation Clouds (Y)
+        e, de, u, r = [], [], [], []
+        for c in nav.latitudeController.clouds:
+            e.append(c.zf[0])
+            de.append(c.zf[1])
+            u.append(c.zf[2])
+            r = c.r
+            ax_cloud_nav_y.add_patch(Ellipse((e[-1], de[-1]), r[0], r[1], facecolor='none', linestyle='dashed'))
+        im_nav_y = ax_cloud_nav_y.scatter(e, de, c=u, cmap=plt.cm.jet)
+        ax_cloud_nav_y.set_xlabel('Error')
+        ax_cloud_nav_y.set_ylabel('DError')
+        plt.colorbar(im_nav_y, ax=ax_cloud_nav_y)
+        if recordfiles[4]:
+            f_nav_y = open(CONTROL_INIT_PATH + 'controller_navy_init', 'w')
+            pickle.dump(nav.latitudeController, f_nav_y)
+            f_nav_y.close()
+            if print_stuff: print 'SPARC: Controller Serialized', f_nav_y.name
+
+
+        # Navigation Clouds (X)
+        e, de, u, r = [], [], [], []
+        for c in nav.longitudeController.clouds:
+            e.append(c.zf[0])
+            de.append(c.zf[1])
+            u.append(c.zf[2])
+            r = c.r
+            ax_cloud_nav_x.add_patch(Ellipse((e[-1], de[-1]), r[0], r[1], facecolor='none', linestyle='dashed'))
+        im_nav_x = ax_cloud_nav_x.scatter(e, de, c=u, cmap=plt.cm.jet)
+        ax_cloud_nav_x.set_xlabel('Error')
+        ax_cloud_nav_x.set_ylabel('DError')
+        plt.colorbar(im_nav_x, ax=ax_cloud_nav_x)
+        if recordfiles[5]:
+            f_nav_x = open(CONTROL_INIT_PATH + 'controller_navx_init', 'w')
+            pickle.dump(nav.longitudeController, f_nav_x)
+            f_nav_x.close()
+            if print_stuff: print 'SPARC: Controller Serialized', f_nav_x.name
+
         plt.show()
 
 
 # ------------------------ Global Methods  -------------------------#
 class Reference:
-    def __init__(self, list_amplitudes, list_times, ramp_step=0):
+    def __init__(self, list_amplitudes, list_times, mode=0, l_err=0.001):
 
         if len(list_amplitudes) != len(list_times):
             raise ValueError('Amplitudes and Times must have the same sizes')
@@ -638,23 +747,40 @@ class Reference:
         self.amplitudes = np.copy(list_amplitudes)
         self.times = np.copy(list_times)
         self.curr_index = 0
-        self.ramp_step = ramp_step
+        self.mode = mode
+        self.logistic_err = l_err
 
     def get_next(self, steptime):
         dy = (self.amplitudes[(self.curr_index + 1) % len(self.amplitudes)] - self.amplitudes[
             self.curr_index]) / float(self.times[self.curr_index])
-        self.time_passed += steptime
-
-        if self.ramp_step == 0:
+        if self.mode == 0:
+            # STEP MODE
+            self.time_passed += steptime
             if self.time_passed > self.time_acumulated:
                 self.curr_index = (self.curr_index + 1) % len(self.amplitudes)
                 self.time_acumulated += self.times[self.curr_index]
             return self.amplitudes[self.curr_index]
-        else:
+        elif self.mode == 1:
+            # RAMP MODE
+            self.time_passed += steptime
             if self.time_passed > self.times[self.curr_index]:
                 self.curr_index = (self.curr_index + 1) % len(self.amplitudes)
                 self.time_passed = 0.0
             return self.amplitudes[self.curr_index] + dy*self.time_passed
+        else:
+            # LOGISTIC MODE
+            if self.time_passed > self.times[self.curr_index]:
+                self.curr_index = (self.curr_index + 1) % len(self.amplitudes)
+                self.time_passed = 0.0
+            if self.time_passed == 0.0:
+                self.a = self.amplitudes[self.curr_index]
+                self.k = self.amplitudes[(self.curr_index + 1) % len(self.amplitudes)]
+                self.m = self.times[self.curr_index]/2.0
+                # Calculate B for an error
+                self.b = math.log(abs((self.k-self.a)/self.logistic_err - 1))/self.m
+            curr_ref = self.a + (self.k-self.a)/(1 + math.exp(-self.b*(self.time_passed - self.m)))
+            self.time_passed += steptime
+            return curr_ref
 
 def reference(k, t):
     # Exponencial
@@ -680,5 +806,5 @@ def generate_input(y, yprev, ref, refprev, t, gain=1):
     return x
 
 # ------------------------ Run Main Program ------------------------#
-test_sparc_model(print_stuff=False, control=[True, True, True, True], readfiles=[True, True, True, True],
-                 recordfiles=[False, False, False, False])
+test_sparc_model(print_stuff=False, control=[True, True, True, True], readfiles=[True, True, True, True, False, False],
+                 recordfiles=[False, False, False, False, False, False])
