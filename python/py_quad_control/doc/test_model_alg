@@ -1,0 +1,21 @@
+1 - Instantiate figures
+2 - Instantiate plant acoording to a specific model
+3 - Set Prev values for state and reference
+4 - Starting control signal set as 0.0
+5 - Run for MAXSTEPS number of steps, from k=1 to k=MAXSTEPS:
+5.1 - Get state (position and angles from plant)
+5.2 - Get current reference
+5.3 - Generate controller input vector consisting of error and error derivative
+of the plant state in relation to the reference
+5.4 - Store states for plotting
+5.5 - Update Prev values for state and reference
+5.6 - If k == 1 (First Iteration)
+5.6.1 - Instantiate one controller for each degree of freedom (alt, pitch, roll,
+yaw) with UMIN/UMAX, REFMIN/REFMAX, XSIZE, curr_x, curr_u
+5.7 - Else
+5.7.1 - Send curr_x, curr_y, curr_ref to the controllers and get output from
+each one.
+5.7.2 - Create array of control signals
+5.7.3 - Convert control signals to motor speeds
+5.7.4 - Update plant
+5.8 - Plot results

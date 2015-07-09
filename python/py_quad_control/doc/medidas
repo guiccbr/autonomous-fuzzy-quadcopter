@@ -1,0 +1,15 @@
+Medidas do Quadcoptero:
+
+Frame:
+    WheelBase = 500mm
+    Peso = 485g
+
+Motors:
+    Peso = 66g
+    Comprimento = 28mm
+    Comprimento com eixo = 53.5mm
+    Diametro = 27.5mm
+
+Hélices:
+    Diametro = 200~250mm
+    Peso = 13g
