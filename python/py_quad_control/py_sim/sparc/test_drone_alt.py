@@ -1,22 +1,10 @@
-# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
-
 # ------------------------ Imports ----------------------------------#
-# Add path to controllers && quadcopters
-# Please, run script in {tfc-drone}/simulator dir
-import sys
-
-sys.path.append("../../models/py/")
-sys.path.append("../../controller/")
+from ...controller import sparc
+from ...models.py import quadcopter as quad, model
 
 import matplotlib.pyplot as plt
 import numpy as np
-import tank_model
-import sparc
 from math import sin, cos
-import sys
-import quadcopter as quad
-import model
-
 
 # ------------------------ Constants  -------------------------------#
 # - Control Signal:
@@ -44,10 +32,7 @@ def test_sparc_model():
     ypoints = []
     refpoints = []
 
-    # Instatiate Plant:
-    y1 = 0.
-
-    # Instatiate Plant:
+    # Instantiate Plant:
     quadcopter = quad.quadcopter(model.model())
 
     prev_ref = 0.
@@ -67,7 +52,7 @@ def test_sparc_model():
             prev_y = curr_y
             prev_ref = curr_ref
 
-        curr_x = generate_input(curr_y, prev_y, curr_ref, prev_ref, STEPTIME)
+        curr_x = generate_input(curr_y, prev_y, curr_ref, prev_ref)
 
         # Stores on list for plotting:
         ypoints.append(curr_y)
@@ -90,7 +75,6 @@ def test_sparc_model():
         else:
             curr_u = controller.update(curr_x, curr_y, curr_ref, prev_u)
 
-
         print '(y, u) ', (curr_y, curr_u)
 
         # Prevent over-excursion of the control signal:
@@ -100,9 +84,9 @@ def test_sparc_model():
             curr_u = UMIN
 
         # Then Update the model with the control signal
-        quadcopter.update(STEPTIME, (curr_u, curr_u, curr_u, curr_u) )
+        quadcopter.update(STEPTIME, (curr_u, curr_u, curr_u, curr_u))
 
-        if (k*STEPTIME)%(MAXTIME/10.) == 0.:
+        if (k*STEPTIME) % (MAXTIME/10.) == 0.:
             print 'k :', k
             print '#clouds: ', len(controller.clouds)
 
@@ -131,7 +115,7 @@ def reference(k):
     return refk
 
 
-def generate_input(y, yprev, ref, refprev, t):
+def generate_input(y, yprev, ref, refprev):
     curr_e = ref-y
     prev_e = refprev-yprev
 

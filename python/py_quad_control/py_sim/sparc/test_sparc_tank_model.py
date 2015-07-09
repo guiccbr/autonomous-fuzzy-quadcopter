@@ -1,16 +1,9 @@
-# vim: tabstop=8 expandtab shiftwidth=4 softtabstop=4
-
 # ------------------------ Imports ----------------------------------#
-import sys
-# Add path to controllers && quadcopters
-# Please, run script in {tfc-drone}/simulator dir
-sys.path.append("../../models/py/")
-sys.path.append("../../controller/")
+from ...controller import sparc
+from ...models.py import tank_model
 
 import matplotlib.pyplot as plt
 import numpy as np
-import tank_model
-import sparc
 from math import sin, cos
 
 
@@ -40,7 +33,7 @@ def test_sparc_tank_model():
     ypoints = []
     refpoints = []
 
-    # Instatiate Plant:
+    # Instantiate Plant:
     y1 = 0.
     plant = tank_model.WaterTank(y1, STEPTIME)
 
@@ -61,7 +54,7 @@ def test_sparc_tank_model():
             prev_y = curr_y
             prev_ref = curr_ref
 
-        curr_x = generate_input(curr_y, prev_y, curr_ref, prev_ref, STEPTIME)
+        curr_x = generate_input(curr_y, prev_y, curr_ref, prev_ref)
 
         # Stores on list for plotting:
         ypoints.append(curr_y)
@@ -114,7 +107,7 @@ def reference(k):
     """
     Outputs the desired output of the plant, on the time step k.
     Keyword arguments:
-    k -- timestemp
+    k -- timestep
     """
 
     refk = cos(0.005*k) + sin(0.007*k) + 3.7
@@ -122,7 +115,7 @@ def reference(k):
     return refk 
 
 
-def generate_input(y, yprev, ref, refprev, t):
+def generate_input(y, yprev, ref, refprev):
     curr_e = ref-y
     prev_e = refprev-yprev
 
