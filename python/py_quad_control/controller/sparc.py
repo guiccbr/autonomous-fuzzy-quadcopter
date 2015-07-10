@@ -47,7 +47,7 @@ class SparcController:
             self.c = -self.c
 
         # Initial consequent will be proportinal to the error.
-        q_init = self.c*(init_ref - init_y)
+        q_init = self.c * (init_ref - init_y)
 
         # Initial input
         curr_x = np.copy(init_input)
@@ -103,24 +103,24 @@ class SparcController:
 
         num_clouds = len(self.clouds)
 
-        #print 'num_clouds, curr_x:', num_clouds, curr_x
+        # print 'num_clouds, curr_x:', num_clouds, curr_x
 
         # (1) Updates the consequents of all clouds
         for i in range(num_clouds):
             self.clouds[i].update_consequent(self.prev_md[i], self.prev_ref, curr_y,
                                              prev_u, self.c, self.umin, self.umax, pp)
 
-        #print 'First Cloud (focal point, consequent):', self.clouds[0].zf
+        # print 'First Cloud (focal point, consequent):', self.clouds[0].zf
 
         # (2) Find the the Data Cloud associated to the new sample
 
         # First, calculate the relative local density relative to each cloud
-        relative_ld = [0.]*num_clouds
+        relative_ld = [0.] * num_clouds
         for i in range(num_clouds):
             relative_ld[i] = self.clouds[i].get_local_density(curr_x)
 
         # Second, calculate the normalized relative densities (membership degrees)
-        curr_md = [md/float(sum(relative_ld)) for md in relative_ld]
+        curr_md = [md / float(sum(relative_ld)) for md in relative_ld]
 
         # Third, find the data cloud that better describes the current sample.
         curr_x_associated_cloud = np.argmax(curr_md)
@@ -141,12 +141,12 @@ class SparcController:
         # (5) Perform two tests to check if a new cloud is needed or if it needs to be updated.
 
         # First, Calculate the global density of the focal points of every existing Data Cloud.
-        focal_points_gd = np.array([0.]*num_clouds)
+        focal_points_gd = np.array([0.] * num_clouds)
         for i in range(num_clouds):
             focal_points_gd[i] = self.get_global_density(self.clouds[i].zf)
 
         # Second, Calculate the distances from the current sample to every focal point
-        focal_points_distances = np.array([0.]*num_clouds)
+        focal_points_distances = np.array([0.] * num_clouds)
         for i in range(num_clouds):
             focal_points_distances[i] = np.linalg.norm(curr_x - self.clouds[i].zf[:self.xsize])
 
@@ -159,13 +159,13 @@ class SparcController:
         # Fourth, Check if the point is far enough from every data cloud.
         curr_sample_is_distant_enough = True
         for i in range(num_clouds):
-            if focal_points_distances[i] <= np.max(self.clouds[i].r)/2.:
+            if focal_points_distances[i] <= np.max(self.clouds[i].r) / 2.:
                 curr_sample_is_distant_enough = False
 
         # Inverse Alternative to FIFTH (Check if sample satisfies one sigma condition)
         # If it's satisfied, a new cloud is not created.
-        #if np.max(relative_ld) > 1./math.e:
-        #    curr_sample_is_distant_enough = False
+        # if np.max(relative_ld) > 1./math.e:
+        #     curr_sample_is_distant_enough = False
 
         # Fifth, If a new cloud is needed, creates a new cloud
         # Otherwise, adds the current point to the best matching cloud and checks
@@ -176,19 +176,19 @@ class SparcController:
         if new_cloud_needed:
 
             # Get variances of all clouds to get the local scatter for the new cloud.
-            local_scatters = np.array([[0., 0.]]*num_clouds)
+            local_scatters = np.array([[0., 0.]] * num_clouds)
             for i in range(num_clouds):
                 local_scatters[i][0] = math.sqrt(self.clouds[i].variance[0])
                 local_scatters[i][1] = math.sqrt(self.clouds[i].variance[1])
             new_cloud_local_scatter = np.average(local_scatters, 0)
-            new_cloud_variance = new_cloud_local_scatter**2
+            new_cloud_variance = new_cloud_local_scatter ** 2
 
             # Creates new cloud with focal point zk and starting variance
             self.clouds.append(DataCloud(curr_z, new_cloud_variance, self.radius_update_const))
 
             # Update Membership degree to include this new cloud!
             relative_ld.append(self.clouds[num_clouds].get_local_density(curr_x))
-            curr_md = [float(md)/sum(relative_ld) for md in relative_ld]
+            curr_md = [float(md) / sum(relative_ld) for md in relative_ld]
 
         # If a new cloud is not needed, a focal point update might still be needed. If the local density of the current
         # sample relative to the associated cloud is bigger than the local density of the focal point of the associated
@@ -248,7 +248,7 @@ class SparcController:
         ga_k = np.dot(z, gcsi_k)
         gb_k = prev_gb + np.dot(prev_z, prev_z)
 
-        gd = float(self.k - 1) / ((self.k - 1) * (np.dot(z, z) + 1) - 2.*ga_k + gb_k)
+        gd = float(self.k - 1) / ((self.k - 1) * (np.dot(z, z) + 1) - 2. * ga_k + gb_k)
 
         return gd
 
@@ -358,7 +358,7 @@ class DataCloud:
         # Calulate and Update New Variance (NEW WAY _ WITH FOCAL POINT)
         for i in range(len(self.variance)):
             dist_x_f = self.zf[:self.xsize][i] - x[i]
-            self.variance[i] = self.variance[i]*float(self.m-1)/self.m + (dist_x_f**2)/float(self.m-1)
+            self.variance[i] = self.variance[i] * float(self.m - 1) / self.m + (dist_x_f ** 2) / float(self.m - 1)
 
         # Update centroid (OLD WAY)
         # self.centroid = new_centroid
@@ -407,11 +407,11 @@ class DataCloud:
         a_k = np.dot(x, csi_k)
         b_k = prev_b + np.dot(prev_x, prev_x)
 
-        ld = float(self.m) / (self.m * (np.dot(x, x) + 1) - 2.*a_k + b_k)
+        ld = float(self.m) / (self.m * (np.dot(x, x) + 1) - 2. * a_k + b_k)
 
         return ld
 
-    def update_consequent(self, prev_md, prev_ref, curr_y, prev_u, c, umin, umax, pp=False):
+    def update_consequent(self, prev_md, prev_ref, curr_y, prev_u, c, umin, umax):
         """
         Updates consequent
 
@@ -441,7 +441,7 @@ class DataCloud:
         q = self.get_consequent()
 
         # Updates consequent
-        self.set_consequent(q+dq)
+        self.set_consequent(q + dq)
 
     def set_consequent(self, new_consequent):
         self.zf[-1] = new_consequent
