@@ -94,7 +94,7 @@ GPS_NOISE_METERS = 0
 # - Noise Percent
 NOISE = 0.0
 
-CONTROL_INIT_PATH = '/Users/guiccbr/Dropbox/Projects/TFC/gitRepos/github-tfc-drone/python/py_quad_control/vrep_sim/sparc/dumped_controllers/'
+CONTROL_INIT_PATH = '/Users/guicc/Projects/autonomous-fuzzy-quadcopter/python/py_quad_control/vrep_sim/sparc/dumped_controllers/'
 
 # Artificial Damping (Set as Zero as Default)
 Kv_pr = 0.0 / (REFMAX_PITCHROLL - REFMIN_PITCHROLL)
