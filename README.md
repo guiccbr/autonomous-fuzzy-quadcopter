@@ -27,6 +27,7 @@ The quadcopter starts with an empty set of rules, what means that it does not
 know how to balance and to navigate itself in the beginning of the mission. The
 controllers need to adapt and evolve in real time in order to minimize the
 error between the quadcopter path and a predetermined reference.
+Click the gif below to see the full video on youtube.
 
-[[quad_gif](https://cloud.githubusercontent.com/assets/10624503/20035289/172f9ac8-a3c5-11e6-82ac-632131724891.gif)](https://www.youtube.com/watch?v=rIEcj6SDO7k)
+[![quad_gif](https://cloud.githubusercontent.com/assets/10624503/20035289/172f9ac8-a3c5-11e6-82ac-632131724891.gif)](https://www.youtube.com/watch?v=rIEcj6SDO7k)
 
