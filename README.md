@@ -64,8 +64,8 @@ The repository has been organized as follows:
 ## Running the simulation ##
 
 To run the simulation, you can choose to open one of the sample V-REP worlds
-that we provide in vrep/worlds or create your own by simply importing the
-provided quadcopter V-REP model from vrep/models/quadcopter.model.
+that we provide in vrep/scenes or create your own by simply importing the
+provided quadcopter V-REP model from vrep/models/tfc_quad.ttm.
 
 [TODO]
 
