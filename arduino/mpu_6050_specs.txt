@@ -1,0 +1,43 @@
+------- Pins -------
+VCC - Power Supply (3.3V)
+GND - Ground
+SCL - I2C serial clock
+SDA - I2C serial data
+XDA - I2C master serial data
+XCL - I2C master serial clock
+AD0 - I2C slave address lsb
+INT - Interrupt Digital Output
+
+------ Transfer Functions ------
+
+- Accelerometer:
+
+The Raw Value of the accelerometer is converted to acceleration throught
+the following transfer function:
+
+	Accel = Raw/F
+
+Where F is given according to the configured sensitivity of the device,
+given on the next table:
+
+Configuration	Factor(F)	Unity
+AFS_SEL = 0	16.384		LSB/g
+AFS_SEL = 1	8.192		LSB/g
+AFS_SEL = 2	4.096		LSB/g
+AFS_SEL = 3	2.048		LSB/g
+
+- Gyroscope
+
+The Raw Value of the gyroscope is converted to  throught
+the following transfer function:
+
+	Angle_Rate = RAW/F
+
+Where F is given according to the configured sensitivity of the device,
+given on the next table:
+
+Configuration	Factor(F)	Unity
+FS_SEL = 0	131		LSB/(DEG/S)
+FS_SEL = 1	65.5		LSB/(DEG/S)
+FS_SEL = 2	32.8		LSB/(DEG/S)
+FS_SEL = 3	16.4		LSB/(DEG/S)
