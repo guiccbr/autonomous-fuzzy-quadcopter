@@ -1,1 +1,2 @@
 *.pyc
+python/py_quad_control/vrep_sim/sparc/dumped_controllers/controller_*_init
