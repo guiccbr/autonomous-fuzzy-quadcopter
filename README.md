@@ -43,6 +43,7 @@ smooth.
 
     Working implementation 
     * Python 2.7 (Main application)
+    * Matplotlib (Plot simulation results) 
     * V-REP (Robotics simulator)
 
     Not tested
@@ -54,14 +55,33 @@ smooth.
 ## Repository Organization ##
 
 Most of the working code has been written in Python 2.7, except for the V-REP
-scripts that have been written in Lua and the future Gazebo plugins that will
-be written in C++. A matlab quadcopter model and a matlab fuzzy controller have
-also been written for preliminary tests, but they have not been tested further
-or documented since then.
+scripts, that have been written in Lua, and the future Gazebo plugins, that
+will be written in C++. A matlab quadcopter model and a matlab fuzzy controller
+have also been written for preliminary tests, but they have not been tested or
+documented further since then.
+
+An arduino folder, containing the implementation of a Kalman Filter for the
+input of an MPU6050 inertial measuremente unity, has also been kept into this
+repository for the eventual future deployment in a real quadcopter. This
+arduino code still needs a lot of improvement and testing, though.
 
 The repository has been organized as follows:
 
-[TODO]
+    .
+    ├── LICENSE                     (MIT License File)
+    ├── README.md                   (This file)
+    ├── arduino                     (MPU6050 specs and Filter - Not Tested)
+    ├── doc                         (Documentation and References)
+    ├── matlab                      (Model and controller - Not Tested)
+    ├── python                           
+    │   ├── py_quad_control         (Evolving fuzzy controller and others)
+    │   └── run_sparc_test_drone.py (Script that controls the simulation model)
+    └─ vrep                         (V-REP simulator models and scenes)
+        ├── models
+        └── scenes
+
+Note that to run the simulation (as in the sample video), the arduino and the
+matlab source files are *not* required. 
 
 ## Running the simulation ##
 
