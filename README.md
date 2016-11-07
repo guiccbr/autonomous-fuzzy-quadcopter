@@ -89,5 +89,20 @@ To run the simulation, you can choose to open one of the sample V-REP worlds
 that we provide in `vrep/scenes` or create your own by simply importing the
 provided quadcopter V-REP model from `vrep/models/tfc_quad.ttm`.
 
-[TODO]
+The following steps illustrate how to run the simulation with the world shown
+in the sample video:
+
+1. Open a terminal and run the controller server with the following command:
+
+``` python2 run_sparc_test_drone.py 19923 ```
+
+2. Open V-REP, and in the `File->Open Scene` menu, navigate to `vrep/scenes`
+and open `mission_mass.ttt`.
+
+3. Start the simulation by cliking the `Play` button.
+
+4. The quadcopter should start moving, controlled by the control server.
+
+To set some high level options for the script, open
+`python/run_sparc_test_drone.py` and edit the arguments of `test_sparc_model`.
 
