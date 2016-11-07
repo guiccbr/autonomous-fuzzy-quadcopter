@@ -105,8 +105,13 @@ Kv_h = 0.0 / (REFMAX_ALT - REFMIN_ALT)
 # ------------------------ Main Program  ---------------------------#
 def test_sparc_model(print_stuff=False, trajectory=True, record_trajectory=True, read_trajectory=False,
                      control=[True] * 4, readfiles=[True] * 4, recordfiles=[True] * 4):
+    
     # Connect to Client (V-REP)
-    client = serve_socket(int(argv[1]))
+    try:
+        client = serve_socket(int(argv[1]))
+    except:
+        print("Client not found. Exiting...")
+        exit(0)
 
     # Receive working directory path from client
     _ = receive_string(client)
