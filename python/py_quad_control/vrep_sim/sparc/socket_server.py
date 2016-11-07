@@ -31,6 +31,7 @@ def serve_socket(port):
     while True:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(3) 
 
         try:
             sock.bind(('', port))
@@ -46,6 +47,7 @@ def serve_socket(port):
 
     client = 0
     print('Server: waiting for client to connect ...')
+
     try:
         client, _ = sock.accept()
         print("Server: accepted connection")
