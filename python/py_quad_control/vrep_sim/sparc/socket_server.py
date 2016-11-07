@@ -16,7 +16,10 @@ socket_server.py - Python code for serving a socket on an IP address
 
 import socket
 import time
+import signal
 
+def client_not_found():
+    raise InterruptedError();
 
 def serve_socket(port):
     """
@@ -26,12 +29,15 @@ def serve_socket(port):
 
     print('Server: running on port %d' % port)
 
+    # Try to find a client for a maximum of 20 seconds
+    signal.signal(signal.SIGALRM, client_not_found) 
+    signal.alarm(20)
+
     sock = None
 
     while True:
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(3) 
 
         try:
             sock.bind(('', port))
@@ -51,6 +57,7 @@ def serve_socket(port):
     try:
         client, _ = sock.accept()
         print("Server: accepted connection")
+        signal.alarm(0)
     except():
         print('Failed')
         exit(1)
