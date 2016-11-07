@@ -103,14 +103,14 @@ class SparcController:
 
         num_clouds = len(self.clouds)
 
-        print 'num_clouds, curr_x:', num_clouds, curr_x
+        #print 'num_clouds, curr_x:', num_clouds, curr_x
 
         # (1) Updates the consequents of all clouds
         for i in range(num_clouds):
             self.clouds[i].update_consequent(self.prev_md[i], self.prev_ref, curr_y,
                                              prev_u, self.c, self.umin, self.umax)
 
-        print 'First Cloud (focal point, consequent):', self.clouds[0].zf
+        #print 'First Cloud (focal point, consequent):', self.clouds[0].zf
 
         # (2) Find the the Data Cloud associated to the new sample
 
