@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/guiccbr/autonomous-fuzzy-quadcopter.svg?branch=master)](https://travis-ci.org/guiccbr/autonomous-fuzzy-quadcopter)
+
 # Autonomous Fuzzy Control and Navigation of Quadcopters #
 
 This project addresses the design and the evaluation of an evolving autonomous
