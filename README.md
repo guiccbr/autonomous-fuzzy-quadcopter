@@ -86,8 +86,8 @@ matlab source files are *not* required.
 ## Running the simulation ##
 
 To run the simulation, you can choose to open one of the sample V-REP worlds
-that we provide in vrep/scenes or create your own by simply importing the
-provided quadcopter V-REP model from vrep/models/tfc_quad.ttm.
+that we provide in `vrep/scenes` or create your own by simply importing the
+provided quadcopter V-REP model from `vrep/models/tfc_quad.ttm`.
 
 [TODO]
 
