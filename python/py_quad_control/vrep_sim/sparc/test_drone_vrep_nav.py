@@ -114,7 +114,7 @@ def test_sparc_model(print_stuff=False, trajectory=True, record_trajectory=True,
         exit(0)
 
     # Receive working directory path from client
-    _ = receive_string(client)
+    # _ = receive_string(client)
 
     # List for plotting time axis
     kpoints = []
